@@ -13,20 +13,27 @@ async function bootstrap() {
     logger: ['error', 'warn', 'log', 'debug'],
   });
 
-  app.setGlobalPrefix('api');
-  app.use(cookieParser());
-  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+  // Global prefix for all API routes, exclude swagger paths
+  app.setGlobalPrefix('api', {
+    exclude: ['docs', 'docs/(.*)', 'docs-json', 'docs-yaml'],
+  });
 
+  app.use(cookieParser());
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      contentSecurityPolicy: false,
+    }),
+  );
   app.enableCors({
     origin: [
-'http://localhost:3000',
-'http://10.1.1.63:3000'
-  ],
+      'http://localhost:3000',
+      'http://10.1.1.63:3000'
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
-
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -40,17 +47,48 @@ async function bootstrap() {
   app.useGlobalInterceptors(new LoggingInterceptor());
   app.useWebSocketAdapter(new IoAdapter(app));
 
+  // Swagger
   const config = new DocumentBuilder()
     .setTitle('LOOP API')
-    .setDescription('Inter-department Communication Platform')
+    .setDescription(
+      'Inter-department Communication & Request Management Platform.\n\n' +
+      'Authenticate via **POST /api/auth/login**, then click Authorize and paste the accessToken.',
+    )
     .setVersion('1.0')
-    .addBearerAuth()
+    .addBearerAuth(
+      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT', description: 'JWT access token' },
+      'access-token',
+    )
+    .addTag('Auth', 'Authentication & session management')
+    .addTag('Users', 'User CRUD (admin only)')
+    .addTag('Departments', 'Department management')
+    .addTag('Tickets', 'Core ticket / request system')
+    .addTag('Forms', 'Dynamic form schema engine')
+    .addTag('Notifications', 'In-app notifications')
+    .addTag('Analytics', 'Reporting & export')
+    .addTag('Audit', 'Audit log (admin only)')
+    .addTag('Settings', 'System configuration (admin only)')
+    .addTag('Files', 'File upload & download')
+    .addTag('Search', 'Global search')
     .build();
+
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+
+  SwaggerModule.setup('docs', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+      docExpansion: 'list',
+      filter: true,
+      showRequestDuration: true,
+      tagsSorter: 'alpha',
+      operationsSorter: 'method',
+    },
+    customSiteTitle: 'LOOP API Documentation',
+  });
 
   const port = process.env.PORT || 4000;
   await app.listen(port);
-  console.log(`🚀 LOOP API running on port ${port}`);
+  console.log(`LOOP API running on http://10.1.1.63:${port}/api`);
+  console.log(`Swagger docs at  http://10.1.1.63:${port}/docs`);
 }
 bootstrap();

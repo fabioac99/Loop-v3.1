@@ -24,7 +24,9 @@ export class TicketsService {
   }
 
   async findAll(user: any, params: any) {
-    const { page = 1, limit = 25, sortBy = 'createdAt', sortOrder = 'desc', ...filters } = params;
+    const { page: rawPage, limit: rawLimit, sortBy = 'createdAt', sortOrder = 'desc', ...filters } = params;
+    const page = parseInt(rawPage, 10) || 1;
+    const limit = parseInt(rawLimit, 10) || 25;
     const where: any = {};
 
     if (user.globalRole !== 'GLOBAL_ADMIN') {
@@ -44,7 +46,7 @@ export class TicketsService {
     if (filters.assignedToId) where.assignedToId = filters.assignedToId;
     if (filters.createdById) where.createdById = filters.createdById;
     if (filters.tags?.length) where.tags = { hasSome: filters.tags };
-    if (filters.overdue) {
+    if (filters.overdue === true || filters.overdue === 'true') {
       where.slaResolutionDeadline = { lt: new Date() };
       where.status = { notIn: ['CLOSED', 'REJECTED'] };
     }
@@ -127,7 +129,7 @@ export class TicketsService {
       if (subtype) {
         if (subtype.slaResponseHours) slaResponseHours = subtype.slaResponseHours;
         if (subtype.slaResolutionHours) slaResolutionHours = subtype.slaResolutionHours;
-        //   defaultPriority = subtype.defaultPriority as TicketPriority;
+        defaultPriority = subtype.defaultPriority as TicketPriority;
       }
     }
 

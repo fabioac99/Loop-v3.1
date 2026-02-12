@@ -2,9 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 @Injectable()
 export class AuditService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
   async findAll(params: { action?: string; entityType?: string; userId?: string; page?: number; limit?: number }) {
-    const { page = 1, limit = 50 } = params;
+    const page = parseInt(String(params.page), 10) || 1;
+    const limit = parseInt(String(params.limit), 10) || 50;
     const where: any = {};
     if (params.action) where.action = params.action;
     if (params.entityType) where.entityType = params.entityType;

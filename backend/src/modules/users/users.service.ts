@@ -11,7 +11,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async findAll(params?: {
     departmentId?: string;
@@ -21,7 +21,9 @@ export class UsersService {
     page?: number;
     limit?: number;
   }) {
-    const { departmentId, globalRole, isActive, search, page = 1, limit = 50 } = params || {};
+    const { departmentId, globalRole, isActive, search, page: rawPage, limit: rawLimit } = params || {};
+    const page = parseInt(String(rawPage), 10) || 1;
+    const limit = parseInt(String(rawLimit), 10) || 50;
     const where: any = {};
     if (departmentId) where.departmentId = departmentId;
     if (globalRole) where.globalRole = globalRole;

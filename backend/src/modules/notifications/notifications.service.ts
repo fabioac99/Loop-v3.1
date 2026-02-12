@@ -3,10 +3,12 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class NotificationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async getForUser(userId: string, params: { unreadOnly?: boolean; page?: number; limit?: number }) {
-    const { unreadOnly = false, page = 1, limit = 20 } = params;
+    const { unreadOnly = false, page: rawPage, limit: rawLimit } = params;
+    const page = parseInt(String(rawPage), 10) || 1;
+    const limit = parseInt(String(rawLimit), 10) || 20;
     const where: any = { userId };
     if (unreadOnly) where.isRead = false;
 
