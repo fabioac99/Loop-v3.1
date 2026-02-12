@@ -1,0 +1,505 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== ENUMS ====================
+
+enum GlobalRole {
+  GLOBAL_ADMIN
+  USER
+}
+
+enum DepartmentRole {
+  DEPARTMENT_USER
+  DEPARTMENT_HEAD
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_REPLY
+  APPROVED
+  REJECTED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  PUSH
+}
+
+enum NotificationFrequency {
+  IMMEDIATE
+  DAILY_DIGEST
+  WEEKLY_DIGEST
+  DISABLED
+}
+
+enum AuditAction {
+  TICKET_CREATED
+  TICKET_UPDATED
+  TICKET_STATUS_CHANGED
+  TICKET_PRIORITY_CHANGED
+  TICKET_ASSIGNED
+  TICKET_CLOSED
+  TICKET_REOPENED
+  TICKET_DUPLICATED
+  MESSAGE_CREATED
+  MESSAGE_EDITED
+  MESSAGE_DELETED
+  USER_LOGIN
+  USER_LOGOUT
+  USER_CREATED
+  USER_UPDATED
+  USER_DELETED
+  DEPARTMENT_CREATED
+  DEPARTMENT_UPDATED
+  DEPARTMENT_DELETED
+  FORM_SCHEMA_CREATED
+  FORM_SCHEMA_UPDATED
+  SETTINGS_UPDATED
+  FILE_UPLOADED
+  FILE_DELETED
+  NOTIFICATION_SENT
+  SLA_BREACH
+}
+
+enum FieldType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  SELECT
+  MULTI_SELECT
+  USER_SELECTOR
+  DEPARTMENT_SELECTOR
+  DATE
+  DATETIME
+  FILE_UPLOAD
+  IMAGE_UPLOAD
+  RICH_TEXT
+  CHECKBOX
+  RADIO_GROUP
+  ENTITY_REFERENCE
+}
+
+// ==================== USERS & AUTH ====================
+
+model User {
+  id                String       @id @default(cuid())
+  email             String       @unique
+  password          String
+  firstName         String       @map("first_name")
+  lastName          String       @map("last_name")
+  avatar            String?
+  globalRole        GlobalRole   @default(USER) @map("global_role")
+  departmentId      String?      @map("department_id")
+  departmentRole    DepartmentRole @default(DEPARTMENT_USER) @map("department_role")
+  isActive          Boolean      @default(true) @map("is_active")
+  lastLoginAt       DateTime?    @map("last_login_at")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+
+  department        Department?  @relation(fields: [departmentId], references: [id])
+  createdTickets    Ticket[]     @relation("TicketCreator")
+  assignedTickets   Ticket[]     @relation("TicketAssignee")
+  messages          Message[]
+  notifications     Notification[]
+  watchedTickets    TicketWatcher[]
+  refreshTokens     RefreshToken[]
+  passwordResets    PasswordReset[]
+  auditLogs         AuditLog[]   @relation("AuditUser")
+  notificationPrefs NotificationPreference[]
+  internalNotes     InternalNote[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id          String   @id @default(cuid())
+  token       String   @unique
+  userId      String   @map("user_id")
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  revokedAt   DateTime? @map("revoked_at")
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model PasswordReset {
+  id          String   @id @default(cuid())
+  token       String   @unique
+  userId      String   @map("user_id")
+  expiresAt   DateTime @map("expires_at")
+  usedAt      DateTime? @map("used_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_resets")
+}
+
+// ==================== DEPARTMENTS ====================
+
+model Department {
+  id              String    @id @default(cuid())
+  name            String    @unique
+  slug            String    @unique
+  description     String?
+  color           String    @default("#6366f1")
+  icon            String?
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  users           User[]
+  fromTickets     Ticket[]  @relation("TicketFromDept")
+  toTickets       Ticket[]  @relation("TicketToDept")
+  requestCategories RequestCategory[]
+  notificationPolicies NotificationPolicy[]
+
+  @@map("departments")
+}
+
+// ==================== FORM SCHEMA ENGINE ====================
+
+model RequestCategory {
+  id              String    @id @default(cuid())
+  name            String
+  slug            String
+  departmentId    String    @map("department_id")
+  description     String?
+  icon            String?
+  isActive        Boolean   @default(true) @map("is_active")
+  sortOrder       Int       @default(0) @map("sort_order")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  department      Department @relation(fields: [departmentId], references: [id])
+  subtypes        RequestSubtype[]
+
+  @@unique([departmentId, slug])
+  @@map("request_categories")
+}
+
+model RequestSubtype {
+  id                String    @id @default(cuid())
+  name              String
+  slug              String
+  categoryId        String    @map("category_id")
+  description       String?
+  formSchemaId      String?   @map("form_schema_id")
+  defaultPriority   TicketPriority @default(NORMAL) @map("default_priority")
+  defaultAssigneeId String?   @map("default_assignee_id")
+  slaResponseHours  Int?      @map("sla_response_hours")
+  slaResolutionHours Int?     @map("sla_resolution_hours")
+  actions           Json?     // operational actions config
+  isActive          Boolean   @default(true) @map("is_active")
+  sortOrder         Int       @default(0) @map("sort_order")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  category          RequestCategory @relation(fields: [categoryId], references: [id])
+  formSchema        FormSchema?     @relation(fields: [formSchemaId], references: [id])
+  tickets           Ticket[]
+
+  @@unique([categoryId, slug])
+  @@map("request_subtypes")
+}
+
+model FormSchema {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  version         Int       @default(1)
+  schema          Json      // JSON schema definition
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  subtypes        RequestSubtype[]
+  submissions     FormSubmission[]
+
+  @@map("form_schemas")
+}
+
+model FormSubmission {
+  id              String    @id @default(cuid())
+  formSchemaId    String    @map("form_schema_id")
+  ticketId        String    @unique @map("ticket_id")
+  data            Json      // submitted form data
+  schemaVersion   Int       @default(1) @map("schema_version")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  formSchema      FormSchema @relation(fields: [formSchemaId], references: [id])
+  ticket          Ticket     @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@map("form_submissions")
+}
+
+// ==================== TICKETS ====================
+
+model Ticket {
+  id                String        @id @default(cuid())
+  ticketNumber      String        @unique @map("ticket_number")
+  title             String
+  description       String
+  status            TicketStatus  @default(OPEN)
+  priority          TicketPriority @default(NORMAL)
+  fromDepartmentId  String        @map("from_department_id")
+  toDepartmentId    String        @map("to_department_id")
+  subtypeId         String?       @map("subtype_id")
+  createdById       String        @map("created_by_id")
+  assignedToId      String?       @map("assigned_to_id")
+  dueDate           DateTime?     @map("due_date")
+  slaResponseDeadline  DateTime?  @map("sla_response_deadline")
+  slaResolutionDeadline DateTime? @map("sla_resolution_deadline")
+  slaResponseAt     DateTime?     @map("sla_response_at")
+  slaResolvedAt     DateTime?     @map("sla_resolved_at")
+  slaPausedAt       DateTime?     @map("sla_paused_at")
+  slaPausedDuration Int           @default(0) @map("sla_paused_duration") // seconds
+  tags              String[]      @default([])
+  duplicateOfId     String?       @map("duplicate_of_id")
+  closedAt          DateTime?     @map("closed_at")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  fromDepartment    Department    @relation("TicketFromDept", fields: [fromDepartmentId], references: [id])
+  toDepartment      Department    @relation("TicketToDept", fields: [toDepartmentId], references: [id])
+  subtype           RequestSubtype? @relation(fields: [subtypeId], references: [id])
+  createdBy         User          @relation("TicketCreator", fields: [createdById], references: [id])
+  assignedTo        User?         @relation("TicketAssignee", fields: [assignedToId], references: [id])
+  duplicateOf       Ticket?       @relation("TicketDuplicates", fields: [duplicateOfId], references: [id])
+  duplicates        Ticket[]      @relation("TicketDuplicates")
+  messages          Message[]
+  attachments       Attachment[]
+  watchers          TicketWatcher[]
+  internalNotes     InternalNote[]
+  historyLogs       TicketHistory[]
+  formSubmission    FormSubmission?
+
+  @@index([status])
+  @@index([priority])
+  @@index([fromDepartmentId])
+  @@index([toDepartmentId])
+  @@index([createdById])
+  @@index([assignedToId])
+  @@index([createdAt])
+  @@map("tickets")
+}
+
+model TicketHistory {
+  id          String   @id @default(cuid())
+  ticketId    String   @map("ticket_id")
+  field       String
+  oldValue    String?  @map("old_value")
+  newValue    String?  @map("new_value")
+  changedById String?  @map("changed_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  ticket      Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@map("ticket_history")
+}
+
+model TicketWatcher {
+  id        String   @id @default(cuid())
+  ticketId  String   @map("ticket_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([ticketId, userId])
+  @@map("ticket_watchers")
+}
+
+// ==================== MESSAGES ====================
+
+model Message {
+  id          String    @id @default(cuid())
+  ticketId    String    @map("ticket_id")
+  authorId    String    @map("author_id")
+  content     String
+  mentions    String[]  @default([])
+  isEdited    Boolean   @default(false) @map("is_edited")
+  isDeleted   Boolean   @default(false) @map("is_deleted")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  ticket      Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author      User      @relation(fields: [authorId], references: [id])
+  attachments Attachment[]
+
+  @@map("messages")
+}
+
+model InternalNote {
+  id          String   @id @default(cuid())
+  ticketId    String   @map("ticket_id")
+  authorId    String   @map("author_id")
+  content     String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  ticket      Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author      User     @relation(fields: [authorId], references: [id])
+
+  @@map("internal_notes")
+}
+
+// ==================== FILES ====================
+
+model Attachment {
+  id          String   @id @default(cuid())
+  filename    String
+  originalName String  @map("original_name")
+  mimeType    String   @map("mime_type")
+  size        Int
+  path        String
+  ticketId    String?  @map("ticket_id")
+  messageId   String?  @map("message_id")
+  uploadedById String  @map("uploaded_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  ticket      Ticket?  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  message     Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@map("attachments")
+}
+
+// ==================== NOTIFICATIONS ====================
+
+model Notification {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  type        String
+  title       String
+  content     String
+  data        Json?
+  isRead      Boolean   @default(false) @map("is_read")
+  readAt      DateTime? @map("read_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id          String               @id @default(cuid())
+  userId      String               @map("user_id")
+  eventType   String               @map("event_type")
+  channel     NotificationChannel
+  frequency   NotificationFrequency @default(IMMEDIATE)
+  isEnabled   Boolean              @default(true) @map("is_enabled")
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventType, channel])
+  @@map("notification_preferences")
+}
+
+model NotificationPolicy {
+  id            String               @id @default(cuid())
+  departmentId  String?              @map("department_id")
+  role          GlobalRole?
+  eventType     String               @map("event_type")
+  channel       NotificationChannel
+  isEnabled     Boolean              @default(true) @map("is_enabled")
+  createdAt     DateTime             @default(now()) @map("created_at")
+  updatedAt     DateTime             @updatedAt @map("updated_at")
+
+  department    Department?          @relation(fields: [departmentId], references: [id])
+
+  @@map("notification_policies")
+}
+
+model NotificationRule {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  condition   Json     // rule condition JSON
+  action      Json     // notification action JSON
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("notification_rules")
+}
+
+// ==================== AUDIT ====================
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  action      AuditAction
+  entityType  String      @map("entity_type")
+  entityId    String?     @map("entity_id")
+  userId      String?     @map("user_id")
+  metadata    Json?
+  ipAddress   String?     @map("ip_address")
+  userAgent   String?     @map("user_agent")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  user        User?       @relation("AuditUser", fields: [userId], references: [id])
+
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ==================== SETTINGS ====================
+
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}
+
+// ==================== SAVED VIEWS ====================
+
+model SavedView {
+  id        String   @id @default(cuid())
+  name      String
+  userId    String   @map("user_id")
+  filters   Json
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("saved_views")
+}
+
+// ==================== TICKET COUNTER ====================
+
+model TicketCounter {
+  id      String @id @default("singleton")
+  counter Int    @default(0)
+
+  @@map("ticket_counter")
+}
