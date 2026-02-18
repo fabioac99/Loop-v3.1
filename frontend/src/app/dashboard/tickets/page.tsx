@@ -71,23 +71,18 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
     finally { setLoading(false); }
   };
 
-  const renderDynamicField = (field: any) => {
+  const renderFieldInput = (field: any) => {
     const value = form.formData[field.id] ?? '';
     const onChange = (v: any) => setForm({ ...form, formData: { ...form.formData, [field.id]: v } });
-    // Conditional visibility
-    if (field.condition) {
-      const depValue = form.formData[field.condition.field];
-      if (depValue !== field.condition.value) return null;
-    }
 
     switch (field.type) {
-      case 'TEXT': return <input className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={value} onChange={(e) => onChange(e.target.value)} />;
-      case 'TEXTAREA': return <textarea className="w-full h-24 px-3 py-2 rounded-lg bg-secondary border border-border text-sm resize-none" value={value} onChange={(e) => onChange(e.target.value)} />;
+      case 'TEXT': return <input className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={value} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder} />;
+      case 'TEXTAREA': return <textarea className="w-full h-24 px-3 py-2 rounded-lg bg-secondary border border-border text-sm resize-none" value={value} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder} />;
       case 'RICH_TEXT': return <RichTextEditor value={value} onChange={onChange} minHeight="100px" />;
-      case 'NUMBER': return <input type="number" className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={value} onChange={(e) => onChange(e.target.value)} />;
+      case 'NUMBER': return <input type="number" className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={value} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder} />;
       case 'DATE': return <input type="date" className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={value} onChange={(e) => onChange(e.target.value)} />;
       case 'DATETIME': return <input type="datetime-local" className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={value} onChange={(e) => onChange(e.target.value)} />;
-      case 'SELECT': case 'DEPARTMENT_SELECTOR': return (
+      case 'SELECT': case 'DEPARTMENT_SELECTOR': case 'USER_SELECTOR': return (
         <select className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={value} onChange={(e) => onChange(e.target.value)}>
           <option value="">Select...</option>
           {field.options?.map((o: string) => <option key={o} value={o}>{o}</option>)}
@@ -100,8 +95,7 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
               <input type="checkbox" checked={(value || []).includes(o)} onChange={(e) => {
                 const arr = value || [];
                 onChange(e.target.checked ? [...arr, o] : arr.filter((x: string) => x !== o));
-              }} className="rounded" />
-              {o}
+              }} className="rounded" /> {o}
             </label>
           ))}
         </div>
@@ -128,8 +122,57 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
           compact
         />
       );
-      default: return <input className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={value} onChange={(e) => onChange(e.target.value)} />;
+      default: return <input className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={value} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder} />;
     }
+  };
+
+  // Render a field with its label, respecting colSpan and GROUP nesting
+  const renderDynamicField = (field: any): React.ReactNode => {
+    // Conditional visibility
+    if (field.condition) {
+      const depValue = form.formData[field.condition.field];
+      if (depValue !== field.condition.value) return null;
+    }
+
+    // GROUP type: render as a section with nested grid
+    if (field.type === 'GROUP') {
+      const visibleChildren = (field.children || []).filter((child: any) => {
+        if (!child.condition) return true;
+        return form.formData[child.condition.field] === child.condition.value;
+      });
+      if (visibleChildren.length === 0 && !field.label) return null;
+      return (
+        <div
+          key={field.id}
+          className="border border-border rounded-xl p-4 bg-accent/20"
+          style={{ gridColumn: `span ${Math.min(field.colSpan || 12, 12)}` }}
+        >
+          {field.label && <h4 className="text-sm font-semibold mb-1">{field.label}</h4>}
+          {field.description && <p className="text-xs text-muted-foreground mb-3">{field.description}</p>}
+          <div className="grid grid-cols-12 gap-4">
+            {(field.children || []).map((child: any) => renderDynamicField(child))}
+          </div>
+        </div>
+      );
+    }
+
+    // Regular field: render label + input respecting colSpan
+    const input = renderFieldInput(field);
+    if (!input) return null;
+
+    return (
+      <div
+        key={field.id}
+        style={{ gridColumn: `span ${Math.min(field.colSpan || 12, 12)}` }}
+      >
+        {field.type !== 'CHECKBOX' && (
+          <label className="block text-sm font-medium mb-1.5">
+            {field.label} {field.required && <span className="text-destructive">*</span>}
+          </label>
+        )}
+        {input}
+      </div>
+    );
   };
 
   if (!open) return null;
@@ -184,18 +227,12 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
           </div>
 
           {/* Dynamic form fields from subtype schema */}
-          {selectedSubtype?.formSchema?.schema?.fields?.map((field: any) => {
-            const rendered = renderDynamicField(field);
-            if (!rendered) return null;
-            return (
-              <div key={field.id}>
-                <label className="block text-sm font-medium mb-1.5">
-                  {field.label} {field.required && <span className="text-destructive">*</span>}
-                </label>
-                {rendered}
-              </div>
-            );
-          })}
+          {/* Dynamic form fields from subtype schema — rendered as a 12-col grid */}
+          {selectedSubtype?.formSchema?.schema?.fields?.length > 0 && (
+            <div className="grid grid-cols-12 gap-4">
+              {selectedSubtype.formSchema.schema.fields.map((field: any) => renderDynamicField(field))}
+            </div>
+          )}
 
           {/* Attachments zone (separate from inline) */}
           <div>

@@ -1,10 +1,253 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
-import { Loader2, Plus, FileText, ChevronRight, Edit2, Trash2 } from 'lucide-react';
+import {
+  Loader2, Plus, FileText, ChevronRight, ChevronDown, Edit2, Trash2,
+  GripVertical, ArrowUp, ArrowDown, Copy, Eye, Columns3, FolderTree, X,
+} from 'lucide-react';
 
-const fieldTypes = ['TEXT', 'TEXTAREA', 'NUMBER', 'SELECT', 'MULTI_SELECT', 'USER_SELECTOR', 'DEPARTMENT_SELECTOR', 'DATE', 'DATETIME', 'FILE_UPLOAD', 'IMAGE_UPLOAD', 'RICH_TEXT', 'CHECKBOX', 'RADIO_GROUP', 'ENTITY_REFERENCE'];
+const FIELD_TYPES = [
+  { value: 'TEXT', label: 'Text', icon: '𝐓' },
+  { value: 'TEXTAREA', label: 'Text Area', icon: '¶' },
+  { value: 'RICH_TEXT', label: 'Rich Text', icon: '📝' },
+  { value: 'NUMBER', label: 'Number', icon: '#' },
+  { value: 'SELECT', label: 'Dropdown', icon: '▾' },
+  { value: 'MULTI_SELECT', label: 'Multi Select', icon: '☑' },
+  { value: 'RADIO_GROUP', label: 'Radio Group', icon: '◉' },
+  { value: 'CHECKBOX', label: 'Checkbox', icon: '☐' },
+  { value: 'DATE', label: 'Date', icon: '📅' },
+  { value: 'DATETIME', label: 'Date & Time', icon: '🕐' },
+  { value: 'FILE_UPLOAD', label: 'File Upload', icon: '📎' },
+  { value: 'IMAGE_UPLOAD', label: 'Image Upload', icon: '🖼' },
+  { value: 'USER_SELECTOR', label: 'User Selector', icon: '👤' },
+  { value: 'DEPARTMENT_SELECTOR', label: 'Department', icon: '🏢' },
+  { value: 'ENTITY_REFERENCE', label: 'Entity Ref', icon: '🔗' },
+  { value: 'GROUP', label: '📁 Sub-form Group', icon: '📁' },
+];
 
+const COL_OPTIONS = [
+  { value: 12, label: 'Full width (1/1)' },
+  { value: 6, label: 'Half (1/2)' },
+  { value: 4, label: 'Third (1/3)' },
+  { value: 3, label: 'Quarter (1/4)' },
+  { value: 8, label: 'Two thirds (2/3)' },
+  { value: 9, label: 'Three quarters (3/4)' },
+];
+
+function makeField(): any {
+  return {
+    id: `field_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    type: 'TEXT', label: '', required: false, options: [],
+    colSpan: 12, // default full width
+    placeholder: '',
+    children: [], // for GROUP type
+    condition: null,
+  };
+}
+
+/* ============================== FIELD EDITOR (RECURSIVE) ============================== */
+function FieldEditor({
+  field, index, total, path,
+  onUpdate, onRemove, onMove, onDuplicate, onAddChild,
+  depth = 0,
+}: {
+  field: any; index: number; total: number; path: number[];
+  onUpdate: (path: number[], data: any) => void;
+  onRemove: (path: number[]) => void;
+  onMove: (path: number[], direction: 'up' | 'down') => void;
+  onDuplicate: (path: number[]) => void;
+  onAddChild: (path: number[]) => void;
+  depth?: number;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const isGroup = field.type === 'GROUP';
+  const hasOptions = ['SELECT', 'MULTI_SELECT', 'RADIO_GROUP'].includes(field.type);
+
+  const depthColors = ['border-l-primary', 'border-l-amber-400', 'border-l-emerald-400', 'border-l-purple-400', 'border-l-rose-400'];
+  const depthColor = depthColors[depth % depthColors.length];
+
+  return (
+    <div className={`border border-border rounded-xl overflow-hidden ${depth > 0 ? `border-l-[3px] ${depthColor}` : ''}`}>
+      {/* Header */}
+      <div className={`flex items-center gap-2 px-3 py-2 ${isGroup ? 'bg-accent/60' : 'bg-card'}`}>
+        <GripVertical size={14} className="text-muted-foreground cursor-grab shrink-0" />
+
+        {/* Expand/collapse for groups */}
+        {isGroup && (
+          <button onClick={() => setExpanded(!expanded)} className="p-0.5 hover:bg-accent rounded">
+            {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          </button>
+        )}
+
+        {/* Type badge */}
+        <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium ${isGroup ? 'bg-primary/15 text-primary' : 'bg-secondary text-muted-foreground'}`}>
+          {FIELD_TYPES.find(t => t.value === field.type)?.icon} {field.type}
+        </span>
+
+        {/* Label */}
+        <span className="text-xs font-medium truncate flex-1">{field.label || '(unnamed)'}</span>
+
+        {/* Column width indicator */}
+        <span className="text-[10px] text-muted-foreground shrink-0">{field.colSpan}/12</span>
+
+        {/* Actions */}
+        <div className="flex items-center gap-0.5 shrink-0">
+          <button onClick={() => onMove(path, 'up')} disabled={index === 0} className="p-1 rounded hover:bg-accent text-muted-foreground disabled:opacity-20"><ArrowUp size={12} /></button>
+          <button onClick={() => onMove(path, 'down')} disabled={index === total - 1} className="p-1 rounded hover:bg-accent text-muted-foreground disabled:opacity-20"><ArrowDown size={12} /></button>
+          <button onClick={() => onDuplicate(path)} className="p-1 rounded hover:bg-accent text-muted-foreground"><Copy size={12} /></button>
+          <button onClick={() => onRemove(path)} className="p-1 rounded hover:bg-destructive/20 text-destructive"><Trash2 size={12} /></button>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="p-3 space-y-3">
+        {/* Row 1: ID, Label, Type */}
+        <div className="grid grid-cols-12 gap-2">
+          <div className="col-span-3">
+            <label className="block text-[10px] text-muted-foreground mb-0.5">Field ID</label>
+            <input className="w-full h-8 px-2 rounded-lg bg-secondary border border-border text-xs" value={field.id} onChange={e => onUpdate(path, { id: e.target.value })} />
+          </div>
+          <div className="col-span-3">
+            <label className="block text-[10px] text-muted-foreground mb-0.5">Label</label>
+            <input className="w-full h-8 px-2 rounded-lg bg-secondary border border-border text-xs" value={field.label} onChange={e => onUpdate(path, { label: e.target.value })} placeholder="Field label" />
+          </div>
+          <div className="col-span-2">
+            <label className="block text-[10px] text-muted-foreground mb-0.5">Type</label>
+            <select className="w-full h-8 px-1 rounded-lg bg-secondary border border-border text-xs" value={field.type} onChange={e => onUpdate(path, { type: e.target.value, ...(e.target.value === 'GROUP' ? { children: field.children || [] } : {}) })}>
+              {FIELD_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </div>
+          <div className="col-span-2">
+            <label className="block text-[10px] text-muted-foreground mb-0.5">Width</label>
+            <select className="w-full h-8 px-1 rounded-lg bg-secondary border border-border text-xs" value={field.colSpan || 12} onChange={e => onUpdate(path, { colSpan: parseInt(e.target.value) })}>
+              {COL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          <div className="col-span-2 flex items-end gap-2 pb-0.5">
+            <label className="flex items-center gap-1 text-[10px] cursor-pointer">
+              <input type="checkbox" checked={field.required || false} onChange={e => onUpdate(path, { required: e.target.checked })} className="rounded" /> Required
+            </label>
+          </div>
+        </div>
+
+        {/* Row 2: Placeholder / Options / Condition */}
+        <div className="grid grid-cols-12 gap-2">
+          {!isGroup && (
+            <div className="col-span-4">
+              <label className="block text-[10px] text-muted-foreground mb-0.5">Placeholder</label>
+              <input className="w-full h-8 px-2 rounded-lg bg-secondary border border-border text-xs" value={field.placeholder || ''} onChange={e => onUpdate(path, { placeholder: e.target.value })} />
+            </div>
+          )}
+          {hasOptions && (
+            <div className="col-span-5">
+              <label className="block text-[10px] text-muted-foreground mb-0.5">Options (comma-separated)</label>
+              <input className="w-full h-8 px-2 rounded-lg bg-secondary border border-border text-xs" value={(field.options || []).join(', ')} onChange={e => onUpdate(path, { options: e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean) })} />
+            </div>
+          )}
+          <div className={`${hasOptions ? 'col-span-3' : isGroup ? 'col-span-6' : 'col-span-4'}`}>
+            <label className="block text-[10px] text-muted-foreground mb-0.5">Condition (field_id=value)</label>
+            <input className="w-full h-8 px-2 rounded-lg bg-secondary border border-border text-xs" value={field.condition ? `${field.condition.field}=${field.condition.value}` : ''} onChange={e => {
+              const parts = e.target.value.split('=');
+              if (parts.length === 2 && parts[0] && parts[1]) {
+                onUpdate(path, { condition: { field: parts[0].trim(), value: parts[1].trim() } });
+              } else if (!e.target.value) {
+                onUpdate(path, { condition: null });
+              }
+            }} placeholder="other_field=some_value" />
+          </div>
+          {isGroup && (
+            <div className="col-span-6">
+              <label className="block text-[10px] text-muted-foreground mb-0.5">Group description</label>
+              <input className="w-full h-8 px-2 rounded-lg bg-secondary border border-border text-xs" value={field.description || ''} onChange={e => onUpdate(path, { description: e.target.value })} placeholder="Optional description for this section" />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Children (for GROUP type) */}
+      {isGroup && expanded && (
+        <div className="border-t border-border bg-accent/20 p-3 space-y-2">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+              <FolderTree size={10} /> Nested fields ({(field.children || []).length})
+            </span>
+            <button onClick={() => onAddChild(path)} className="flex items-center gap-1 text-[10px] text-primary hover:underline"><Plus size={10} /> Add nested field</button>
+          </div>
+          {(field.children || []).length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-4 border border-dashed border-border rounded-lg">
+              No nested fields yet — click "Add nested field" to build the sub-form
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {field.children.map((child: any, childIdx: number) => (
+                <FieldEditor
+                  key={child.id}
+                  field={child}
+                  index={childIdx}
+                  total={field.children.length}
+                  path={[...path, childIdx]}
+                  onUpdate={onUpdate}
+                  onRemove={onRemove}
+                  onMove={onMove}
+                  onDuplicate={onDuplicate}
+                  onAddChild={onAddChild}
+                  depth={depth + 1}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================== FORM PREVIEW ============================== */
+function FormPreview({ fields }: { fields: any[] }) {
+  const renderField = (field: any) => {
+    if (field.type === 'GROUP') {
+      return (
+        <div className="col-span-12 border border-border rounded-xl p-4 bg-card/50" style={{ gridColumn: `span ${field.colSpan || 12}` }}>
+          <h4 className="text-sm font-semibold mb-1">{field.label || 'Untitled Group'}</h4>
+          {field.description && <p className="text-xs text-muted-foreground mb-3">{field.description}</p>}
+          <div className="grid grid-cols-12 gap-3">
+            {(field.children || []).map((child: any) => renderField(child))}
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div key={field.id} style={{ gridColumn: `span ${field.colSpan || 12}` }}>
+        <label className="block text-xs font-medium mb-1">
+          {field.label || 'Untitled'} {field.required && <span className="text-destructive">*</span>}
+        </label>
+        {field.type === 'TEXTAREA' || field.type === 'RICH_TEXT' ? (
+          <div className="w-full h-16 rounded-lg bg-secondary border border-border" />
+        ) : field.type === 'SELECT' || field.type === 'MULTI_SELECT' || field.type === 'RADIO_GROUP' ? (
+          <div className="w-full h-9 rounded-lg bg-secondary border border-border flex items-center px-3 text-xs text-muted-foreground">
+            {field.options?.length ? field.options.slice(0, 3).join(', ') + (field.options.length > 3 ? '...' : '') : 'Select...'}
+          </div>
+        ) : field.type === 'CHECKBOX' ? (
+          <label className="flex items-center gap-2 text-xs"><input type="checkbox" disabled className="rounded" /> {field.label}</label>
+        ) : field.type === 'FILE_UPLOAD' || field.type === 'IMAGE_UPLOAD' ? (
+          <div className="w-full h-16 border-2 border-dashed border-border rounded-lg flex items-center justify-center text-xs text-muted-foreground">Drop file here</div>
+        ) : (
+          <div className="w-full h-9 rounded-lg bg-secondary border border-border flex items-center px-3 text-xs text-muted-foreground">
+            {field.placeholder || field.type}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="grid grid-cols-12 gap-3">
+      {fields.map((f: any) => renderField(f))}
+    </div>
+  );
+}
+
+/* ============================== MAIN PAGE ============================== */
 export default function FormsPage() {
   const [categories, setCategories] = useState<any[]>([]);
   const [schemas, setSchemas] = useState<any[]>([]);
@@ -12,6 +255,7 @@ export default function FormsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedSchema, setSelectedSchema] = useState<any>(null);
   const [showSchemaEditor, setShowSchemaEditor] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const [schemaForm, setSchemaForm] = useState({ name: '', description: '', schema: { fields: [] as any[] } });
 
   const fetchData = async () => {
@@ -21,21 +265,73 @@ export default function FormsPage() {
   };
   useEffect(() => { fetchData(); }, []);
 
-  const addField = () => {
+  // Deep field operations using path arrays
+  const getFieldsAtPath = useCallback((fields: any[], path: number[]): { parent: any[]; index: number } => {
+    if (path.length === 1) return { parent: fields, index: path[0] };
+    let current = fields;
+    for (let i = 0; i < path.length - 1; i++) {
+      current = current[path[i]].children || [];
+    }
+    return { parent: current, index: path[path.length - 1] };
+  }, []);
+
+  const updateFieldAtPath = useCallback((path: number[], data: any) => {
+    const newFields = JSON.parse(JSON.stringify(schemaForm.schema.fields));
+    const { parent, index } = getFieldsAtPath(newFields, path);
+    parent[index] = { ...parent[index], ...data };
+    setSchemaForm({ ...schemaForm, schema: { fields: newFields } });
+  }, [schemaForm, getFieldsAtPath]);
+
+  const removeFieldAtPath = useCallback((path: number[]) => {
+    const newFields = JSON.parse(JSON.stringify(schemaForm.schema.fields));
+    const { parent, index } = getFieldsAtPath(newFields, path);
+    parent.splice(index, 1);
+    setSchemaForm({ ...schemaForm, schema: { fields: newFields } });
+  }, [schemaForm, getFieldsAtPath]);
+
+  const moveFieldAtPath = useCallback((path: number[], direction: 'up' | 'down') => {
+    const newFields = JSON.parse(JSON.stringify(schemaForm.schema.fields));
+    const { parent, index } = getFieldsAtPath(newFields, path);
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= parent.length) return;
+    [parent[index], parent[newIndex]] = [parent[newIndex], parent[index]];
+    setSchemaForm({ ...schemaForm, schema: { fields: newFields } });
+  }, [schemaForm, getFieldsAtPath]);
+
+  const duplicateFieldAtPath = useCallback((path: number[]) => {
+    const newFields = JSON.parse(JSON.stringify(schemaForm.schema.fields));
+    const { parent, index } = getFieldsAtPath(newFields, path);
+    const clone = JSON.parse(JSON.stringify(parent[index]));
+    clone.id = `${clone.id}_copy_${Date.now().toString(36)}`;
+    clone.label = `${clone.label} (copy)`;
+    parent.splice(index + 1, 0, clone);
+    setSchemaForm({ ...schemaForm, schema: { fields: newFields } });
+  }, [schemaForm, getFieldsAtPath]);
+
+  const addChildAtPath = useCallback((path: number[]) => {
+    const newFields = JSON.parse(JSON.stringify(schemaForm.schema.fields));
+    const { parent, index } = getFieldsAtPath(newFields, path);
+    if (!parent[index].children) parent[index].children = [];
+    parent[index].children.push(makeField());
+    setSchemaForm({ ...schemaForm, schema: { fields: newFields } });
+  }, [schemaForm, getFieldsAtPath]);
+
+  const addTopField = () => {
     setSchemaForm({
       ...schemaForm,
-      schema: { fields: [...schemaForm.schema.fields, { id: `field_${Date.now()}`, type: 'TEXT', label: '', required: false, options: [] }] },
+      schema: { fields: [...schemaForm.schema.fields, makeField()] },
     });
   };
 
-  const updateField = (index: number, data: any) => {
-    const fields = [...schemaForm.schema.fields];
-    fields[index] = { ...fields[index], ...data };
-    setSchemaForm({ ...schemaForm, schema: { fields } });
-  };
-
-  const removeField = (index: number) => {
-    setSchemaForm({ ...schemaForm, schema: { fields: schemaForm.schema.fields.filter((_: any, i: number) => i !== index) } });
+  const addTopGroup = () => {
+    const group = makeField();
+    group.type = 'GROUP';
+    group.label = 'Section';
+    group.children = [];
+    setSchemaForm({
+      ...schemaForm,
+      schema: { fields: [...schemaForm.schema.fields, group] },
+    });
   };
 
   const saveSchema = async () => {
@@ -47,33 +343,41 @@ export default function FormsPage() {
     setShowSchemaEditor(false); fetchData();
   };
 
+  const countFields = (fields: any[]): number => {
+    let count = 0;
+    for (const f of fields) {
+      count++;
+      if (f.children?.length) count += countFields(f.children);
+    }
+    return count;
+  };
+
   if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-primary" size={24} /></div>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Form Builder</h1>
-        <button onClick={() => { setSelectedSchema(null); setSchemaForm({ name: '', description: '', schema: { fields: [] } }); setShowSchemaEditor(true); }}
+        <button onClick={() => { setSelectedSchema(null); setSchemaForm({ name: '', description: '', schema: { fields: [] } }); setShowPreview(false); setShowSchemaEditor(true); }}
           className="flex items-center gap-2 h-10 px-5 bg-primary text-primary-foreground rounded-xl text-sm font-medium"><Plus size={16} /> New Schema</button>
       </div>
 
-      {/* Existing categories */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Categories */}
         <div className="bg-card border border-border rounded-2xl p-5">
           <h3 className="text-sm font-semibold mb-4">Request Categories & Subtypes</h3>
           <div className="space-y-3">
             {categories.map(cat => (
               <div key={cat.id} className="border border-border rounded-xl p-3">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.department?.slug === 'design' ? '#8b5cf6' : cat.department?.slug === 'daf' ? '#10b981' : '#3b82f6' }} />
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.department?.color || '#6366f1' }} />
                   <span className="font-medium text-sm">{cat.name}</span>
                   <span className="text-xs text-muted-foreground">({cat.department?.name})</span>
                 </div>
                 <div className="space-y-1 pl-4">
                   {cat.subtypes?.map((st: any) => (
                     <div key={st.id} className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <ChevronRight size={10} />
-                      <span>{st.name}</span>
+                      <ChevronRight size={10} /><span>{st.name}</span>
                       {st.formSchemaId && <span className="px-1.5 py-0.5 bg-primary/10 text-primary rounded text-[10px]">has form</span>}
                     </div>
                   ))}
@@ -83,16 +387,17 @@ export default function FormsPage() {
           </div>
         </div>
 
+        {/* Schemas */}
         <div className="bg-card border border-border rounded-2xl p-5">
           <h3 className="text-sm font-semibold mb-4">Form Schemas ({schemas.length})</h3>
           <div className="space-y-2">
             {schemas.map(s => (
               <div key={s.id} className="flex items-center gap-3 p-3 border border-border rounded-xl hover:bg-accent/50 cursor-pointer"
-                onClick={() => { setSelectedSchema(s); setSchemaForm({ name: s.name, description: s.description || '', schema: s.schema }); setShowSchemaEditor(true); }}>
+                onClick={() => { setSelectedSchema(s); setSchemaForm({ name: s.name, description: s.description || '', schema: s.schema || { fields: [] } }); setShowPreview(false); setShowSchemaEditor(true); }}>
                 <FileText size={16} className="text-primary" />
                 <div className="flex-1">
                   <p className="text-sm font-medium">{s.name}</p>
-                  <p className="text-xs text-muted-foreground">{(s.schema as any)?.fields?.length || 0} fields &middot; v{s.version}</p>
+                  <p className="text-xs text-muted-foreground">{countFields((s.schema as any)?.fields || [])} fields &middot; v{s.version}</p>
                 </div>
                 <Edit2 size={14} className="text-muted-foreground" />
               </div>
@@ -101,59 +406,90 @@ export default function FormsPage() {
         </div>
       </div>
 
-      {/* Schema Editor Modal */}
+      {/* Schema Editor — full screen overlay */}
       {showSchemaEditor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowSchemaEditor(false)}>
-          <div className="bg-card border border-border rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto m-4" onClick={e => e.stopPropagation()}>
-            <div className="p-6 border-b border-border flex items-center justify-between">
-              <h2 className="text-lg font-bold">{selectedSchema ? 'Edit' : 'New'} Form Schema</h2>
-              <button onClick={() => setShowSchemaEditor(false)} className="text-muted-foreground hover:text-foreground">&times;</button>
+        <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex flex-col">
+          {/* Top bar */}
+          <div className="h-14 border-b border-border flex items-center px-6 gap-4 shrink-0 bg-card">
+            <button onClick={() => setShowSchemaEditor(false)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground"><X size={18} /></button>
+            <div className="flex-1">
+              <input className="text-lg font-bold bg-transparent border-0 outline-none w-full" value={schemaForm.name} onChange={e => setSchemaForm({...schemaForm, name: e.target.value})} placeholder="Schema name" />
             </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Schema Name</label>
-                  <input className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={schemaForm.name} onChange={e => setSchemaForm({...schemaForm, name: e.target.value})} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Description</label>
-                  <input className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={schemaForm.description} onChange={e => setSchemaForm({...schemaForm, description: e.target.value})} />
+            <div className="flex items-center gap-2">
+              <button onClick={() => setShowPreview(!showPreview)} className={`flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-medium border transition-colors ${showPreview ? 'bg-primary/10 text-primary border-primary/30' : 'border-border hover:bg-accent'}`}>
+                <Eye size={14} /> {showPreview ? 'Editor' : 'Preview'}
+              </button>
+              <button onClick={saveSchema} className="h-9 px-5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90">Save Schema</button>
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="px-6 py-3 border-b border-border bg-card/50">
+            <input className="w-full text-sm bg-transparent border-0 outline-none text-muted-foreground" value={schemaForm.description} onChange={e => setSchemaForm({...schemaForm, description: e.target.value})} placeholder="Schema description (optional)" />
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-6">
+            {showPreview ? (
+              <div className="max-w-3xl mx-auto">
+                <h3 className="text-sm font-semibold mb-4 text-muted-foreground uppercase tracking-wider">Form Preview</h3>
+                <div className="bg-card border border-border rounded-2xl p-6">
+                  {schemaForm.schema.fields.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">No fields yet</p>
+                  ) : (
+                    <FormPreview fields={schemaForm.schema.fields} />
+                  )}
                 </div>
               </div>
+            ) : (
+              <div className="max-w-4xl mx-auto space-y-3">
+                {/* Add buttons */}
+                <div className="flex items-center gap-2 mb-4">
+                  <button onClick={addTopField} className="flex items-center gap-1.5 h-9 px-4 bg-secondary border border-border rounded-lg text-xs font-medium hover:bg-accent transition-colors">
+                    <Plus size={12} /> Add Field
+                  </button>
+                  <button onClick={addTopGroup} className="flex items-center gap-1.5 h-9 px-4 bg-primary/10 text-primary border border-primary/20 rounded-lg text-xs font-medium hover:bg-primary/20 transition-colors">
+                    <FolderTree size={12} /> Add Group / Section
+                  </button>
+                  <span className="text-xs text-muted-foreground ml-2">{countFields(schemaForm.schema.fields)} fields total</span>
+                </div>
 
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Fields</h3>
-                <button onClick={addField} className="flex items-center gap-1 text-xs text-primary hover:underline"><Plus size={12} /> Add Field</button>
-              </div>
-
-              <div className="space-y-3">
-                {schemaForm.schema.fields.map((field: any, idx: number) => (
-                  <div key={idx} className="border border-border rounded-xl p-4 space-y-3">
-                    <div className="grid grid-cols-3 gap-3">
-                      <input placeholder="Field ID" className="h-9 px-3 rounded-lg bg-secondary border border-border text-xs" value={field.id} onChange={e => updateField(idx, { id: e.target.value })} />
-                      <input placeholder="Label" className="h-9 px-3 rounded-lg bg-secondary border border-border text-xs" value={field.label} onChange={e => updateField(idx, { label: e.target.value })} />
-                      <div className="flex gap-2">
-                        <select className="flex-1 h-9 px-2 rounded-lg bg-secondary border border-border text-xs" value={field.type} onChange={e => updateField(idx, { type: e.target.value })}>
-                          {fieldTypes.map(t => <option key={t} value={t}>{t}</option>)}
-                        </select>
-                        <button onClick={() => removeField(idx)} className="p-2 text-destructive hover:bg-destructive/10 rounded"><Trash2 size={12} /></button>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4 text-xs">
-                      <label className="flex items-center gap-1.5"><input type="checkbox" checked={field.required} onChange={e => updateField(idx, { required: e.target.checked })} /> Required</label>
-                      {['SELECT', 'MULTI_SELECT', 'RADIO_GROUP'].includes(field.type) && (
-                        <input placeholder="Options (comma separated)" className="flex-1 h-8 px-2 rounded-lg bg-secondary border border-border text-xs" value={(field.options || []).join(', ')} onChange={e => updateField(idx, { options: e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean) })} />
-                      )}
-                    </div>
+                {/* Fields */}
+                {schemaForm.schema.fields.length === 0 ? (
+                  <div className="border-2 border-dashed border-border rounded-2xl py-16 text-center">
+                    <Columns3 size={32} className="mx-auto mb-3 text-muted-foreground/30" />
+                    <p className="text-sm text-muted-foreground mb-1">No fields yet</p>
+                    <p className="text-xs text-muted-foreground">Click "Add Field" to start building, or "Add Group" to create nested sections</p>
                   </div>
-                ))}
-              </div>
+                ) : (
+                  <div className="space-y-2">
+                    {schemaForm.schema.fields.map((field: any, idx: number) => (
+                      <FieldEditor
+                        key={field.id}
+                        field={field}
+                        index={idx}
+                        total={schemaForm.schema.fields.length}
+                        path={[idx]}
+                        onUpdate={updateFieldAtPath}
+                        onRemove={removeFieldAtPath}
+                        onMove={moveFieldAtPath}
+                        onDuplicate={duplicateFieldAtPath}
+                        onAddChild={addChildAtPath}
+                      />
+                    ))}
+                  </div>
+                )}
 
-              <div className="flex justify-end gap-3 pt-4">
-                <button onClick={() => setShowSchemaEditor(false)} className="px-4 h-10 rounded-xl text-sm hover:bg-accent">Cancel</button>
-                <button onClick={saveSchema} className="px-6 h-10 bg-primary text-primary-foreground rounded-xl text-sm font-medium">Save Schema</button>
+                {/* Add more at bottom */}
+                {schemaForm.schema.fields.length > 0 && (
+                  <div className="flex items-center gap-2 pt-2">
+                    <button onClick={addTopField} className="flex items-center gap-1 text-xs text-primary hover:underline"><Plus size={12} /> Add field</button>
+                    <span className="text-muted-foreground text-xs">|</span>
+                    <button onClick={addTopGroup} className="flex items-center gap-1 text-xs text-primary hover:underline"><FolderTree size={12} /> Add group</button>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}
