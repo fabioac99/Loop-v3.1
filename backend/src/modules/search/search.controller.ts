@@ -4,7 +4,7 @@ import { SearchService } from './search.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 @ApiTags('Search')
-@ApiBearerAuth()
+@ApiBearerAuth('access-token')
 @Controller('search')
 @UseGuards(JwtAuthGuard)
 export class SearchController {

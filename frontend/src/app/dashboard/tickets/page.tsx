@@ -5,7 +5,10 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
-import { Plus, Filter, Loader2, ChevronLeft, ChevronRight, Clock, AlertTriangle } from 'lucide-react';
+import { useNotificationStore } from '@/stores/notifications';
+import { Plus, Loader2, ChevronLeft, ChevronRight, Clock, AlertTriangle, Bell } from 'lucide-react';
+import RichTextEditor from '@/components/common/RichTextEditor';
+import FileAttachment, { type UploadedFile } from '@/components/common/FileAttachment';
 
 const statusColors: Record<string, string> = {
   OPEN: 'bg-blue-500/10 text-blue-500 border-blue-500/20', IN_PROGRESS: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
@@ -14,12 +17,17 @@ const statusColors: Record<string, string> = {
 };
 const priorityDots: Record<string, string> = { LOW: 'bg-zinc-400', NORMAL: 'bg-blue-400', HIGH: 'bg-amber-400', URGENT: 'bg-red-400' };
 
+/* ============================== CREATE MODAL ============================== */
 function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
   const { user } = useAuthStore();
   const [departments, setDepartments] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
-  const [form, setForm] = useState({ title: '', description: '', toDepartmentId: '', subtypeId: '', assignedToId: '', priority: 'NORMAL', dueDate: '', formData: {} as any });
+  const [form, setForm] = useState({
+    title: '', description: '', toDepartmentId: '', subtypeId: '',
+    assignedToId: '', priority: 'NORMAL', dueDate: '', formData: {} as any,
+  });
+  const [attachments, setAttachments] = useState<UploadedFile[]>([]);
   const [selectedSubtype, setSelectedSubtype] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -28,38 +36,43 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
     if (open) {
       api.getDepartments().then(setDepartments);
       api.getUsers().then((r) => setUsers(r.data));
+      setForm({ title: '', description: '', toDepartmentId: '', subtypeId: '', assignedToId: '', priority: 'NORMAL', dueDate: '', formData: {} });
+      setAttachments([]);
+      setSelectedSubtype(null);
+      setError('');
     }
   }, [open]);
 
   useEffect(() => {
     if (form.toDepartmentId) {
-      api.getFormHierarchy(form.toDepartmentId).then(setCategories);
-    }
+      api.getFormHierarchy(form.toDepartmentId).then(setCategories).catch(() => setCategories([]));
+    } else { setCategories([]); }
   }, [form.toDepartmentId]);
 
   useEffect(() => {
     if (form.subtypeId) {
-      api.getSubtype(form.subtypeId).then(setSelectedSubtype);
-    } else {
-      setSelectedSubtype(null);
-    }
+      api.getSubtype(form.subtypeId).then(setSelectedSubtype).catch(() => setSelectedSubtype(null));
+    } else { setSelectedSubtype(null); }
   }, [form.subtypeId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true); setError('');
     try {
-      await api.createTicket(form);
+      await api.createTicket({
+        ...form,
+        // Include attachment IDs in the description as references
+        attachmentIds: attachments.map(a => a.id),
+      });
       onCreated(); onClose();
-      setForm({ title: '', description: '', toDepartmentId: '', subtypeId: '', assignedToId: '', priority: 'NORMAL', dueDate: '', formData: {} });
     } catch (err: any) { setError(err.message); }
     finally { setLoading(false); }
   };
 
   const renderDynamicField = (field: any) => {
-    const value = form.formData[field.id] || '';
+    const value = form.formData[field.id] ?? '';
     const onChange = (v: any) => setForm({ ...form, formData: { ...form.formData, [field.id]: v } });
-    // Check conditional visibility
+    // Conditional visibility
     if (field.condition) {
       const depValue = form.formData[field.condition.field];
       if (depValue !== field.condition.value) return null;
@@ -67,10 +80,12 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
 
     switch (field.type) {
       case 'TEXT': return <input className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={value} onChange={(e) => onChange(e.target.value)} />;
-      case 'TEXTAREA': case 'RICH_TEXT': return <textarea className="w-full h-24 px-3 py-2 rounded-lg bg-secondary border border-border text-sm resize-none" value={value} onChange={(e) => onChange(e.target.value)} />;
+      case 'TEXTAREA': return <textarea className="w-full h-24 px-3 py-2 rounded-lg bg-secondary border border-border text-sm resize-none" value={value} onChange={(e) => onChange(e.target.value)} />;
+      case 'RICH_TEXT': return <RichTextEditor value={value} onChange={onChange} minHeight="100px" />;
       case 'NUMBER': return <input type="number" className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={value} onChange={(e) => onChange(e.target.value)} />;
       case 'DATE': return <input type="date" className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={value} onChange={(e) => onChange(e.target.value)} />;
-      case 'SELECT': return (
+      case 'DATETIME': return <input type="datetime-local" className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={value} onChange={(e) => onChange(e.target.value)} />;
+      case 'SELECT': case 'DEPARTMENT_SELECTOR': return (
         <select className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={value} onChange={(e) => onChange(e.target.value)}>
           <option value="">Select...</option>
           {field.options?.map((o: string) => <option key={o} value={o}>{o}</option>)}
@@ -79,7 +94,7 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
       case 'MULTI_SELECT': return (
         <div className="flex flex-wrap gap-2">
           {field.options?.map((o: string) => (
-            <label key={o} className="flex items-center gap-1.5 text-sm">
+            <label key={o} className="flex items-center gap-1.5 text-sm cursor-pointer">
               <input type="checkbox" checked={(value || []).includes(o)} onChange={(e) => {
                 const arr = value || [];
                 onChange(e.target.checked ? [...arr, o] : arr.filter((x: string) => x !== o));
@@ -92,18 +107,24 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
       case 'RADIO_GROUP': return (
         <div className="flex flex-wrap gap-3">
           {field.options?.map((o: string) => (
-            <label key={o} className="flex items-center gap-1.5 text-sm">
-              <input type="radio" name={field.id} checked={value === o} onChange={() => onChange(o)} />
-              {o}
+            <label key={o} className="flex items-center gap-1.5 text-sm cursor-pointer">
+              <input type="radio" name={field.id} checked={value === o} onChange={() => onChange(o)} /> {o}
             </label>
           ))}
         </div>
       );
       case 'CHECKBOX': return (
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} className="rounded" />
-          {field.label}
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} className="rounded" /> {field.label}
         </label>
+      );
+      case 'FILE_UPLOAD': case 'IMAGE_UPLOAD': return (
+        <FileAttachment
+          files={(form.formData[`${field.id}_files`] || []) as UploadedFile[]}
+          onChange={(f) => setForm({ ...form, formData: { ...form.formData, [`${field.id}_files`]: f, [field.id]: f.map(x => x.id) } })}
+          accept={field.type === 'IMAGE_UPLOAD' ? 'image/*' : undefined}
+          compact
+        />
       );
       default: return <input className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={value} onChange={(e) => onChange(e.target.value)} />;
     }
@@ -111,24 +132,28 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-card border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4" onClick={(e) => e.stopPropagation()}>
-        <div className="p-6 border-b border-border">
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm pt-[5vh]" onClick={onClose}>
+      <div className="bg-card border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="p-6 border-b border-border sticky top-0 bg-card z-10 rounded-t-2xl">
           <h2 className="text-lg font-bold">New Request</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Create a new inter-department request</p>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {/* Department + Type */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1.5">To Department *</label>
+              <label className="block text-sm font-medium mb-1.5">To Department <span className="text-destructive">*</span></label>
               <select className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.toDepartmentId} onChange={(e) => setForm({ ...form, toDepartmentId: e.target.value, subtypeId: '' })} required>
                 <option value="">Select department</option>
-                {departments.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                {departments.map((d: any) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1.5">Request Type</label>
               <select className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.subtypeId} onChange={(e) => setForm({ ...form, subtypeId: e.target.value })}>
-                <option value="">General</option>
+                <option value="">General request</option>
                 {categories.map((cat: any) => (
                   <optgroup key={cat.id} label={cat.name}>
                     {cat.subtypes?.map((st: any) => <option key={st.id} value={st.id}>{st.name}</option>)}
@@ -138,26 +163,45 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
             </div>
           </div>
 
+          {/* Title */}
           <div>
-            <label className="block text-sm font-medium mb-1.5">Title *</label>
-            <input className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+            <label className="block text-sm font-medium mb-1.5">Title <span className="text-destructive">*</span></label>
+            <input className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Brief summary of your request" required />
           </div>
 
+          {/* Description — Rich Text Editor */}
           <div>
-            <label className="block text-sm font-medium mb-1.5">Description *</label>
-            <textarea className="w-full h-32 px-3 py-2 rounded-lg bg-secondary border border-border text-sm resize-none" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} required />
+            <label className="block text-sm font-medium mb-1.5">Description <span className="text-destructive">*</span></label>
+            <RichTextEditor
+              value={form.description}
+              onChange={(val) => setForm({ ...form, description: val })}
+              placeholder="Describe your request in detail... You can paste images directly here."
+              minHeight="180px"
+              onFilesChange={setAttachments}
+            />
           </div>
 
-          {/* Dynamic form fields */}
-          {selectedSubtype?.formSchema?.schema?.fields?.map((field: any) => (
-            <div key={field.id}>
-              <label className="block text-sm font-medium mb-1.5">
-                {field.label} {field.required && '*'}
-              </label>
-              {renderDynamicField(field)}
-            </div>
-          ))}
+          {/* Dynamic form fields from subtype schema */}
+          {selectedSubtype?.formSchema?.schema?.fields?.map((field: any) => {
+            const rendered = renderDynamicField(field);
+            if (!rendered) return null;
+            return (
+              <div key={field.id}>
+                <label className="block text-sm font-medium mb-1.5">
+                  {field.label} {field.required && <span className="text-destructive">*</span>}
+                </label>
+                {rendered}
+              </div>
+            );
+          })}
 
+          {/* Attachments zone (separate from inline) */}
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Additional Attachments</label>
+            <FileAttachment files={attachments} onChange={setAttachments} compact />
+          </div>
+
+          {/* Priority / Assign / Due */}
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1.5">Priority</label>
@@ -180,11 +224,11 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
             </div>
           </div>
 
-          {error && <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{error}</p>}
+          {error && <p className="text-sm text-destructive bg-destructive/10 px-4 py-2.5 rounded-xl">{error}</p>}
 
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose} className="px-4 h-10 rounded-xl text-sm font-medium hover:bg-accent">Cancel</button>
-            <button type="submit" disabled={loading} className="px-6 h-10 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 flex items-center gap-2">
+          <div className="flex justify-end gap-3 pt-2 border-t border-border">
+            <button type="button" onClick={onClose} className="px-4 h-10 rounded-xl text-sm font-medium hover:bg-accent transition-colors">Cancel</button>
+            <button type="submit" disabled={loading} className="px-6 h-10 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 flex items-center gap-2 transition-all">
               {loading && <Loader2 className="animate-spin" size={14} />}
               Create Request
             </button>
@@ -195,15 +239,16 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
   );
 }
 
+/* ============================== TICKETS LIST ============================== */
 export default function TicketsPage() {
   const searchParams = useSearchParams();
+  const { hasUnreadForTicket } = useNotificationStore();
   const [tickets, setTickets] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({ status: '', priority: '', search: '' });
   const [showCreate, setShowCreate] = useState(searchParams.get('new') === 'true');
-  const [showFilters, setShowFilters] = useState(false);
 
   const fetchTickets = useCallback(async () => {
     setLoading(true);
@@ -213,8 +258,7 @@ export default function TicketsPage() {
       if (filters.priority) params.priority = filters.priority;
       if (filters.search) params.search = filters.search;
       const data = await api.getTickets(params);
-      setTickets(data.data);
-      setTotal(data.total);
+      setTickets(data.data); setTotal(data.total);
     } finally { setLoading(false); }
   }, [page, filters]);
 
@@ -224,8 +268,7 @@ export default function TicketsPage() {
     if (['CLOSED', 'REJECTED'].includes(ticket.status)) return null;
     const deadline = ticket.slaResolutionDeadline ? new Date(ticket.slaResolutionDeadline) : null;
     if (!deadline) return null;
-    const now = new Date();
-    const hoursLeft = (deadline.getTime() - now.getTime()) / 3600000;
+    const hoursLeft = (deadline.getTime() - Date.now()) / 3600000;
     if (hoursLeft < 0) return 'red';
     if (hoursLeft < 8) return 'yellow';
     return 'green';
@@ -245,14 +288,8 @@ export default function TicketsPage() {
 
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 max-w-sm">
-          <input
-            placeholder="Search tickets..."
-            value={filters.search}
-            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-            className="w-full h-10 pl-4 pr-4 rounded-xl bg-card border border-border text-sm"
-          />
-        </div>
+        <input placeholder="Search tickets..." value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+          className="flex-1 max-w-sm h-10 px-4 rounded-xl bg-card border border-border text-sm" />
         <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} className="h-10 px-3 rounded-xl bg-card border border-border text-sm">
           <option value="">All Status</option>
           {['OPEN', 'IN_PROGRESS', 'WAITING_REPLY', 'APPROVED', 'REJECTED', 'CLOSED'].map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
@@ -273,18 +310,20 @@ export default function TicketsPage() {
           <div className="divide-y divide-border">
             {tickets.map((ticket) => {
               const sla = getSlaStatus(ticket);
+              const hasUnread = hasUnreadForTicket(ticket.id);
               return (
-                <Link key={ticket.id} href={`/dashboard/tickets/${ticket.id}`} className="flex items-center gap-4 p-4 hover:bg-accent/50 transition-all group">
+                <Link key={ticket.id} href={`/dashboard/tickets/${ticket.id}`} className={`flex items-center gap-4 p-4 hover:bg-accent/50 transition-all group ${hasUnread ? 'bg-primary/[0.03] border-l-2 border-l-primary' : ''}`}>
                   <div className={`w-2 h-2 rounded-full shrink-0 ${priorityDots[ticket.priority]}`} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
+                      {hasUnread && <Bell size={11} className="text-primary fill-primary" />}
                       <span className="font-mono text-xs text-muted-foreground">{ticket.ticketNumber}</span>
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${statusColors[ticket.status]}`}>{ticket.status.replace('_', ' ')}</span>
                       {sla === 'red' && <AlertTriangle size={12} className="text-red-400 animate-pulse" />}
                       {sla === 'yellow' && <Clock size={12} className="text-amber-400" />}
                       {ticket.subtype && <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{ticket.subtype.category?.name} / {ticket.subtype.name}</span>}
                     </div>
-                    <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">{ticket.title}</p>
+                    <p className={`text-sm truncate group-hover:text-primary transition-colors ${hasUnread ? 'font-semibold' : 'font-medium'}`}>{ticket.title}</p>
                   </div>
                   <div className="flex items-center gap-4 shrink-0 text-xs text-muted-foreground">
                     <div className="flex items-center gap-1.5">
@@ -302,8 +341,6 @@ export default function TicketsPage() {
             })}
           </div>
         )}
-
-        {/* Pagination */}
         {total > 25 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-border">
             <p className="text-xs text-muted-foreground">Page {page} of {Math.ceil(total / 25)}</p>

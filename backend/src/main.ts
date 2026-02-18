@@ -25,15 +25,14 @@ async function bootstrap() {
       contentSecurityPolicy: false,
     }),
   );
+
   app.enableCors({
-    origin: [
-      'http://localhost:3000',
-      'http://10.1.1.63:3000'
-    ],
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -88,7 +87,7 @@ async function bootstrap() {
 
   const port = process.env.PORT || 4000;
   await app.listen(port);
-  console.log(`LOOP API running on http://10.1.1.63:${port}/api`);
-  console.log(`Swagger docs at  http://10.1.1.63:${port}/docs`);
+  console.log(`LOOP API running on http://localhost:${port}/api`);
+  console.log(`Swagger docs at  http://localhost:${port}/docs`);
 }
 bootstrap();

@@ -1,4 +1,13 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+function getApiUrl() {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window !== 'undefined') {
+    // Auto-detect: same hostname, port 4000
+    return `${window.location.protocol}//${window.location.hostname}:4000/api`;
+  }
+  return 'http://localhost:4000/api';
+}
+
+const API_URL = getApiUrl();
 
 class ApiClient {
   private accessToken: string | null = null;
@@ -112,8 +121,12 @@ class ApiClient {
 
   // Notifications
   getNotifications(params?: any) { return this.get<any>(`/notifications?${new URLSearchParams(params || {})}`); }
+  getUnreadTicketIds() { return this.get<string[]>('/notifications/unread-tickets'); }
   markNotificationRead(id: string) { return this.patch<any>(`/notifications/${id}/read`, {}); }
+  markNotificationUnread(id: string) { return this.patch<any>(`/notifications/${id}/unread`, {}); }
   markAllNotificationsRead() { return this.post<any>('/notifications/read-all'); }
+  markTicketNotificationsRead(ticketId: string) { return this.post<any>(`/notifications/ticket/${ticketId}/read`); }
+  markTicketNotificationsUnread(ticketId: string) { return this.post<any>(`/notifications/ticket/${ticketId}/unread`); }
 
   // Forms
   getCategories(departmentId?: string) { return this.get<any>(`/forms/categories${departmentId ? `?departmentId=${departmentId}` : ''}`); }

@@ -1,10 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { getApiUrl } from '@/lib/config';
 import { useAuthStore } from '@/stores/auth';
-import { ArrowLeft, Send, Paperclip, Eye, EyeOff, Copy, Clock, AlertTriangle, Loader2, MoreHorizontal } from 'lucide-react';
+import { useNotificationStore } from '@/stores/notifications';
+import {
+  ArrowLeft, Send, Paperclip, Eye, EyeOff, Copy, Clock, AlertTriangle,
+  Loader2, Image as ImageIcon, Bold, Italic, List, X, Bell, BellOff,
+} from 'lucide-react';
+import RichTextEditor from '@/components/common/RichTextEditor';
+import type { UploadedFile } from '@/components/common/RichTextEditor';
 
 const statusColors: Record<string, string> = {
   OPEN: 'bg-blue-500/10 text-blue-500', IN_PROGRESS: 'bg-amber-500/10 text-amber-500',
@@ -16,10 +23,12 @@ export default function TicketDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const { user } = useAuthStore();
+  const { hasUnreadForTicket, markTicketRead, markTicketUnread, fetchUnreadTicketIds, fetchNotifications } = useNotificationStore();
   const isAdmin = user?.globalRole === 'GLOBAL_ADMIN';
   const [ticket, setTicket] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [messageFiles, setMessageFiles] = useState<UploadedFile[]>([]);
   const [note, setNote] = useState('');
   const [sending, setSending] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
@@ -31,16 +40,29 @@ export default function TicketDetailPage() {
       setTicket(data);
     } finally { setLoading(false); }
   };
-
   useEffect(() => { fetchTicket(); }, [id]);
+
+  // Auto-mark notifications as read when opening the ticket
+  useEffect(() => {
+    if (id && hasUnreadForTicket(id as string)) {
+      markTicketRead(id as string).then(() => {
+        fetchNotifications();
+        fetchUnreadTicketIds();
+      });
+    }
+  }, [id]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim()) return;
+    if (!message.trim() && messageFiles.length === 0) return;
     setSending(true);
     try {
-      await api.addMessage(ticket.id, { content: message });
+      await api.addMessage(ticket.id, {
+        content: message,
+        attachmentIds: messageFiles.map(f => f.id),
+      });
       setMessage('');
+      setMessageFiles([]);
       fetchTicket();
     } finally { setSending(false); }
   };
@@ -48,11 +70,7 @@ export default function TicketDetailPage() {
   const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!note.trim()) return;
-    try {
-      await api.addNote(ticket.id, note);
-      setNote('');
-      fetchTicket();
-    } catch {}
+    try { await api.addNote(ticket.id, note); setNote(''); fetchTicket(); } catch {}
   };
 
   const handleStatusChange = async (status: string) => {
@@ -74,8 +92,7 @@ export default function TicketDetailPage() {
   const getSlaInfo = () => {
     if (!ticket?.slaResolutionDeadline || ['CLOSED', 'REJECTED'].includes(ticket.status)) return null;
     const deadline = new Date(ticket.slaResolutionDeadline);
-    const now = new Date();
-    const hours = (deadline.getTime() - now.getTime()) / 3600000;
+    const hours = (deadline.getTime() - Date.now()) / 3600000;
     if (hours < 0) return { color: 'text-red-400 bg-red-500/10', text: `Overdue by ${Math.abs(Math.round(hours))}h`, icon: AlertTriangle };
     if (hours < 8) return { color: 'text-amber-400 bg-amber-500/10', text: `${Math.round(hours)}h remaining`, icon: Clock };
     return { color: 'text-emerald-400 bg-emerald-500/10', text: `${Math.round(hours)}h remaining`, icon: Clock };
@@ -88,6 +105,7 @@ export default function TicketDetailPage() {
   const canManage = isAdmin || user?.departmentRole === 'DEPARTMENT_HEAD' || ticket.assignedToId === user?.id;
   const canSeeNotes = isAdmin || user?.departmentId === ticket.toDepartmentId;
   const actions = ticket.subtype?.actions || {};
+  const apiUrl = getApiUrl();
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -100,48 +118,39 @@ export default function TicketDetailPage() {
             <span className={`px-2 py-0.5 rounded-md text-xs font-medium ${statusColors[ticket.status]}`}>{ticket.status.replace('_', ' ')}</span>
             {ticket.priority === 'URGENT' && <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-red-500/10 text-red-400 animate-pulse">URGENT</span>}
             {ticket.priority === 'HIGH' && <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-amber-500/10 text-amber-400">HIGH</span>}
-            {sla && (
-              <span className={`px-2 py-0.5 rounded-md text-xs font-medium flex items-center gap-1 ${sla.color}`}>
-                <sla.icon size={10} /> {sla.text}
-              </span>
-            )}
+            {sla && <span className={`px-2 py-0.5 rounded-md text-xs font-medium flex items-center gap-1 ${sla.color}`}><sla.icon size={10} /> {sla.text}</span>}
           </div>
           <h1 className="text-xl font-bold">{ticket.title}</h1>
         </div>
-
-        {/* Status actions */}
         {canManage && (
           <div className="flex items-center gap-2 shrink-0">
-            <select
-              value={ticket.status}
-              onChange={(e) => handleStatusChange(e.target.value)}
-              className="h-9 px-3 rounded-lg bg-secondary border border-border text-sm"
-            >
-              {['OPEN', 'IN_PROGRESS', 'WAITING_REPLY', 'APPROVED', 'REJECTED', 'CLOSED'].map(s => (
-                <option key={s} value={s}>{s.replace('_', ' ')}</option>
-              ))}
+            <select value={ticket.status} onChange={(e) => handleStatusChange(e.target.value)} className="h-9 px-3 rounded-lg bg-secondary border border-border text-sm">
+              {['OPEN', 'IN_PROGRESS', 'WAITING_REPLY', 'APPROVED', 'REJECTED', 'CLOSED'].map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
             </select>
-
-            {/* Operational Actions */}
             {Object.keys(actions).length > 0 && (
               <div className="relative">
-                <button onClick={() => setShowActions(!showActions)} className="h-9 px-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90">
-                  Actions
-                </button>
+                <button onClick={() => setShowActions(!showActions)} className="h-9 px-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90">Actions</button>
                 {showActions && (
                   <div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-xl z-10 py-1 min-w-[160px]">
                     {Object.entries(actions).map(([key, action]: any) => (
-                      <button key={key} onClick={() => handleAction(key)} className="w-full px-3 py-2 text-sm text-left hover:bg-accent">
-                        {action.label}
-                      </button>
+                      <button key={key} onClick={() => handleAction(key)} className="w-full px-3 py-2 text-sm text-left hover:bg-accent">{action.label}</button>
                     ))}
                   </div>
                 )}
               </div>
             )}
-
-            <button onClick={handleDuplicate} className="h-9 px-3 rounded-lg border border-border text-sm hover:bg-accent" title="Duplicate">
-              <Copy size={14} />
+            <button onClick={handleDuplicate} className="h-9 px-3 rounded-lg border border-border text-sm hover:bg-accent" title="Duplicate"><Copy size={14} /></button>
+            <button
+              onClick={async () => {
+                await markTicketUnread(ticket.id);
+                fetchNotifications();
+                fetchUnreadTicketIds();
+              }}
+              className="h-9 px-3 rounded-lg border border-border text-sm hover:bg-accent flex items-center gap-1.5"
+              title="Mark as unread"
+            >
+              <BellOff size={14} />
+              <span className="hidden sm:inline text-xs">Unread</span>
             </button>
           </div>
         )}
@@ -152,18 +161,42 @@ export default function TicketDetailPage() {
         <div className="lg:col-span-2 space-y-4">
           {/* Description */}
           <div className="bg-card border border-border rounded-2xl p-5">
-            <p className="text-sm whitespace-pre-wrap">{ticket.description}</p>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Description</h3>
+            <div className="text-sm prose prose-sm prose-invert max-w-none [&_img]:rounded-lg [&_img]:max-w-full" dangerouslySetInnerHTML={{ __html: ticket.description }} />
           </div>
+
+          {/* Ticket Attachments */}
+          {ticket.attachments?.length > 0 && (
+            <div className="bg-card border border-border rounded-2xl p-5">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Attachments ({ticket.attachments.length})</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {ticket.attachments.map((att: any) => (
+                  <a key={att.id} href={`${apiUrl}/files/${att.id}`} target="_blank" rel="noopener noreferrer"
+                    className="border border-border rounded-xl p-3 hover:bg-accent/50 transition-all group">
+                    {att.mimeType?.startsWith('image/') ? (
+                      <img src={`${apiUrl}/files/${att.id}`} alt={att.originalName} className="w-full h-24 object-cover rounded-lg mb-2" />
+                    ) : (
+                      <div className="w-full h-24 bg-secondary rounded-lg flex items-center justify-center mb-2">
+                        <Paperclip size={24} className="text-muted-foreground" />
+                      </div>
+                    )}
+                    <p className="text-xs font-medium truncate">{att.originalName}</p>
+                    <p className="text-[10px] text-muted-foreground">{(att.size / 1024).toFixed(1)} KB</p>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Form Data */}
           {ticket.formSubmission?.data && Object.keys(ticket.formSubmission.data).length > 0 && (
             <div className="bg-card border border-border rounded-2xl p-5">
-              <h3 className="text-sm font-semibold mb-3">Form Details</h3>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Form Details</h3>
               <div className="grid grid-cols-2 gap-3">
-                {Object.entries(ticket.formSubmission.data).map(([key, val]: any) => (
-                  <div key={key}>
-                    <p className="text-xs text-muted-foreground capitalize">{key.replace(/_/g, ' ')}</p>
-                    <p className="text-sm font-medium">{Array.isArray(val) ? val.join(', ') : String(val)}</p>
+                {Object.entries(ticket.formSubmission.data).filter(([k]) => !k.endsWith('_files')).map(([key, val]: any) => (
+                  <div key={key} className="bg-secondary/50 rounded-lg px-3 py-2">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{key.replace(/_/g, ' ')}</p>
+                    <p className="text-sm font-medium mt-0.5">{Array.isArray(val) ? val.join(', ') : String(val || '-')}</p>
                   </div>
                 ))}
               </div>
@@ -184,22 +217,32 @@ export default function TicketDetailPage() {
 
             <div className="divide-y divide-border max-h-[500px] overflow-y-auto">
               {ticket.messages?.map((msg: any) => (
-                <div key={msg.id} className={`p-4 ${msg.author.id === user?.id ? 'bg-primary/5' : ''}`}>
+                <div key={msg.id} className={`p-4 ${msg.author.id === user?.id ? 'bg-primary/[0.03]' : ''}`}>
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">
+                    <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
                       {msg.author.firstName?.[0]}{msg.author.lastName?.[0]}
                     </div>
                     <span className="text-sm font-medium">{msg.author.firstName} {msg.author.lastName}</span>
                     <span className="text-xs text-muted-foreground">{new Date(msg.createdAt).toLocaleString()}</span>
-                    {msg.isEdited && <span className="text-[10px] text-muted-foreground">(edited)</span>}
+                    {msg.isEdited && <span className="text-[10px] text-muted-foreground italic">(edited)</span>}
                   </div>
-                  <p className="text-sm whitespace-pre-wrap pl-9">{msg.content}</p>
+                  <div className="pl-9 text-sm prose prose-sm prose-invert max-w-none [&_img]:rounded-lg [&_img]:max-w-full [&_img]:max-h-[300px]" dangerouslySetInnerHTML={{ __html: msg.content }} />
+
+                  {/* Message attachments */}
                   {msg.attachments?.length > 0 && (
-                    <div className="pl-9 mt-2 flex flex-wrap gap-2">
+                    <div className="pl-9 mt-3 flex flex-wrap gap-2">
                       {msg.attachments.map((att: any) => (
-                        <a key={att.id} href={`${process.env.NEXT_PUBLIC_API_URL}/files/${att.id}`} target="_blank"
-                          className="text-xs text-primary bg-primary/10 px-2 py-1 rounded-md hover:underline flex items-center gap-1">
-                          <Paperclip size={10} /> {att.originalName}
+                        <a key={att.id} href={`${apiUrl}/files/${att.id}`} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-2 bg-secondary border border-border rounded-lg px-3 py-2 text-xs hover:bg-accent transition-all">
+                          {att.mimeType?.startsWith('image/') ? (
+                            <img src={`${apiUrl}/files/${att.id}`} alt={att.originalName} className="w-8 h-8 rounded object-cover" />
+                          ) : (
+                            <Paperclip size={14} className="text-muted-foreground" />
+                          )}
+                          <div>
+                            <p className="font-medium truncate max-w-[120px]">{att.originalName}</p>
+                            <p className="text-muted-foreground">{(att.size / 1024).toFixed(1)} KB</p>
+                          </div>
                         </a>
                       ))}
                     </div>
@@ -207,48 +250,55 @@ export default function TicketDetailPage() {
                 </div>
               ))}
               {(!ticket.messages?.length) && (
-                <p className="p-6 text-center text-sm text-muted-foreground">No messages yet</p>
+                <p className="p-6 text-center text-sm text-muted-foreground">No messages yet — be the first to reply</p>
               )}
             </div>
 
-            {/* Reply */}
-            <form onSubmit={handleSendMessage} className="p-4 border-t border-border">
-              <div className="flex gap-2">
-                <textarea
+            {/* Reply area with Rich Text Editor */}
+            <div className="border-t border-border p-4">
+              <form onSubmit={handleSendMessage}>
+                <RichTextEditor
                   value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Type a reply..."
-                  className="flex-1 h-20 px-3 py-2 rounded-xl bg-secondary border border-border text-sm resize-none"
+                  onChange={setMessage}
+                  placeholder="Write a reply... Paste images directly or use the toolbar to attach files."
+                  minHeight="100px"
+                  ticketId={ticket.id}
+                  onFilesChange={setMessageFiles}
                 />
-                <button type="submit" disabled={sending || !message.trim()} className="self-end h-10 w-10 bg-primary text-primary-foreground rounded-xl flex items-center justify-center hover:opacity-90 disabled:opacity-50">
-                  {sending ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
-                </button>
-              </div>
-            </form>
+                <div className="flex items-center justify-between mt-3">
+                  <p className="text-xs text-muted-foreground">
+                    {messageFiles.length > 0 && `${messageFiles.length} file(s) attached`}
+                  </p>
+                  <button type="submit" disabled={sending || (!message.trim() && messageFiles.length === 0)}
+                    className="flex items-center gap-2 h-9 px-5 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-all">
+                    {sending ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
+                    Reply
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
 
           {/* Internal Notes */}
           {showNotes && canSeeNotes && (
             <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl overflow-hidden">
               <div className="p-4 border-b border-amber-500/20">
-                <h3 className="text-sm font-semibold text-amber-400">Internal Notes (private to {ticket.toDepartment?.name})</h3>
+                <h3 className="text-sm font-semibold text-amber-400">Internal Notes — visible only to {ticket.toDepartment?.name}</h3>
               </div>
-              <div className="divide-y divide-amber-500/10">
-                {ticket.internalNotes?.map((n: any) => (
+              <div className="divide-y divide-amber-500/10 max-h-[300px] overflow-y-auto">
+                {ticket.internalNotes?.length > 0 ? ticket.internalNotes.map((n: any) => (
                   <div key={n.id} className="p-4">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-sm font-medium">{n.author.firstName} {n.author.lastName}</span>
                       <span className="text-xs text-muted-foreground">{new Date(n.createdAt).toLocaleString()}</span>
                     </div>
-                    <p className="text-sm">{n.content}</p>
+                    <p className="text-sm whitespace-pre-wrap">{n.content}</p>
                   </div>
-                ))}
+                )) : <p className="p-4 text-sm text-muted-foreground">No internal notes yet</p>}
               </div>
-              <form onSubmit={handleAddNote} className="p-4 border-t border-amber-500/20">
-                <div className="flex gap-2">
-                  <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add internal note..." className="flex-1 h-10 px-3 rounded-xl bg-secondary border border-border text-sm" />
-                  <button type="submit" className="h-10 px-4 bg-amber-500 text-white rounded-xl text-sm font-medium hover:opacity-90">Add</button>
-                </div>
+              <form onSubmit={handleAddNote} className="p-4 border-t border-amber-500/20 flex gap-2">
+                <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add internal note..." className="flex-1 h-10 px-3 rounded-xl bg-secondary border border-border text-sm" />
+                <button type="submit" disabled={!note.trim()} className="h-10 px-4 bg-amber-500 text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-40">Add</button>
               </form>
             </div>
           )}
@@ -256,22 +306,21 @@ export default function TicketDetailPage() {
 
         {/* Sidebar */}
         <div className="space-y-4">
-          {/* Details */}
           <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-            <h3 className="text-sm font-semibold">Details</h3>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Details</h3>
             <div className="space-y-3 text-sm">
-              <div className="flex justify-between"><span className="text-muted-foreground">From</span>
-                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: ticket.fromDepartment?.color }} />{ticket.fromDepartment?.name}</span>
-              </div>
-              <div className="flex justify-between"><span className="text-muted-foreground">To</span>
-                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: ticket.toDepartment?.color }} />{ticket.toDepartment?.name}</span>
-              </div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Created by</span><span>{ticket.createdBy?.firstName} {ticket.createdBy?.lastName}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Assigned to</span><span>{ticket.assignedTo ? `${ticket.assignedTo.firstName} ${ticket.assignedTo.lastName}` : 'Unassigned'}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Priority</span><span className="font-medium">{ticket.priority}</span></div>
-              {ticket.subtype && <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span>{ticket.subtype.category?.name} / {ticket.subtype.name}</span></div>}
-              <div className="flex justify-between"><span className="text-muted-foreground">Created</span><span>{new Date(ticket.createdAt).toLocaleDateString()}</span></div>
-              {ticket.dueDate && <div className="flex justify-between"><span className="text-muted-foreground">Due</span><span>{new Date(ticket.dueDate).toLocaleDateString()}</span></div>}
+              {[
+                ['From', <span key="f" className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: ticket.fromDepartment?.color }} />{ticket.fromDepartment?.name}</span>],
+                ['To', <span key="t" className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: ticket.toDepartment?.color }} />{ticket.toDepartment?.name}</span>],
+                ['Created by', `${ticket.createdBy?.firstName} ${ticket.createdBy?.lastName}`],
+                ['Assigned to', ticket.assignedTo ? `${ticket.assignedTo.firstName} ${ticket.assignedTo.lastName}` : 'Unassigned'],
+                ['Priority', ticket.priority],
+                ...(ticket.subtype ? [['Type', `${ticket.subtype.category?.name} / ${ticket.subtype.name}`]] : []),
+                ['Created', new Date(ticket.createdAt).toLocaleDateString()],
+                ...(ticket.dueDate ? [['Due', new Date(ticket.dueDate).toLocaleDateString()]] : []),
+              ].map(([label, val], i) => (
+                <div key={i} className="flex justify-between"><span className="text-muted-foreground">{label}</span><span className="text-right">{val}</span></div>
+              ))}
               {ticket.tags?.length > 0 && (
                 <div><span className="text-muted-foreground block mb-1">Tags</span>
                   <div className="flex flex-wrap gap-1">{ticket.tags.map((t: string) => <span key={t} className="px-2 py-0.5 bg-secondary rounded-md text-xs">{t}</span>)}</div>
@@ -280,9 +329,8 @@ export default function TicketDetailPage() {
             </div>
           </div>
 
-          {/* Watchers */}
           <div className="bg-card border border-border rounded-2xl p-5">
-            <h3 className="text-sm font-semibold mb-3">Watchers ({ticket.watchers?.length || 0})</h3>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Watchers ({ticket.watchers?.length || 0})</h3>
             <div className="flex flex-wrap gap-1">
               {ticket.watchers?.map((w: any) => (
                 <span key={w.id} className="px-2 py-1 bg-secondary rounded-lg text-xs">{w.user.firstName} {w.user.lastName?.[0]}.</span>
@@ -290,15 +338,14 @@ export default function TicketDetailPage() {
             </div>
           </div>
 
-          {/* History */}
           <div className="bg-card border border-border rounded-2xl p-5">
-            <h3 className="text-sm font-semibold mb-3">History</h3>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">History</h3>
             <div className="space-y-2 max-h-60 overflow-y-auto">
               {ticket.historyLogs?.map((log: any) => (
                 <div key={log.id} className="text-xs text-muted-foreground">
                   <span className="font-medium text-foreground">{log.field}</span> changed
-                  {log.oldValue && <> from <span className="font-mono">{log.oldValue}</span></>}
-                  {log.newValue && <> to <span className="font-mono">{log.newValue}</span></>}
+                  {log.oldValue && <> from <code className="text-[10px] bg-secondary px-1 rounded">{log.oldValue}</code></>}
+                  {log.newValue && <> to <code className="text-[10px] bg-secondary px-1 rounded">{log.newValue}</code></>}
                   <p className="text-[10px] mt-0.5">{new Date(log.createdAt).toLocaleString()}</p>
                 </div>
               ))}

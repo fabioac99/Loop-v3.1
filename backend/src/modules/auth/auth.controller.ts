@@ -31,7 +31,7 @@ export class AuthController {
 
   @Post('logout')
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('access-token')
   logout(@CurrentUser() user: any, @Body() body: { refreshToken?: string }) {
     return this.authService.logout(user.id, body.refreshToken);
   }
@@ -48,7 +48,7 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('access-token')
   getProfile(@CurrentUser() user: any) {
     return this.authService.getProfile(user.id);
   }

@@ -84,25 +84,15 @@ async function main() {
         },
       },
     }),
-    room: await prisma.formSchema.create({
-      data: {
-        name: 'Room Preparation Request', schema: {
-          fields: [
-            { id: 'format', type: 'SELECT', label: 'Format', required: true, options: ['Braga', 'Barcelos', 'Londres', 'Lisboa', 'Amesterdao', 'Roma'] },
-          ],
-        },
-      },
-    }),
   };
 
-
   const designSubtypes = [
-    { name: 'Design', slug: 'artwork', formSchemaId: designSchemas.artwork.id, slaResponseHours: 8, slaResolutionHours: 48 },
+    { name: 'Artwork', slug: 'artwork', formSchemaId: designSchemas.artwork.id, slaResponseHours: 8, slaResolutionHours: 48 },
     { name: '3D Models', slug: '3d-models', slaResponseHours: 8, slaResolutionHours: 72 },
-    { name: 'Sourcing', slug: 'fabrics', slaResponseHours: 8, slaResolutionHours: 48 },
+    { name: 'Fabrics (Malhas)', slug: 'fabrics', slaResponseHours: 8, slaResolutionHours: 48 },
     { name: 'Boards', slug: 'boards', slaResponseHours: 8, slaResolutionHours: 48 },
     { name: 'Marketing', slug: 'marketing', formSchemaId: designSchemas.marketing.id, slaResponseHours: 4, slaResolutionHours: 24 },
-    { name: 'Room', slug: 'room', formSchemaId: designSchemas.room.id, slaResponseHours: 4, slaResolutionHours: 48 },
+    { name: 'Showroom Preparation', slug: 'showroom', slaResponseHours: 4, slaResolutionHours: 48 },
   ];
 
   for (const st of designSubtypes) {

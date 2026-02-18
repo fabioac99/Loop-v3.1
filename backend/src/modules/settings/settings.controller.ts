@@ -5,7 +5,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 @ApiTags('Settings')
-@ApiBearerAuth()
+@ApiBearerAuth('access-token')
 @Controller('settings')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('GLOBAL_ADMIN')

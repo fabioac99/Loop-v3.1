@@ -8,7 +8,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 
 @ApiTags('Departments')
-@ApiBearerAuth()
+@ApiBearerAuth('access-token')
 @Controller('departments')
 @UseGuards(JwtAuthGuard)
 export class DepartmentsController {

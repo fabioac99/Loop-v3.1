@@ -7,7 +7,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Analytics')
-@ApiBearerAuth()
+@ApiBearerAuth('access-token')
 @Controller('analytics')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('GLOBAL_ADMIN', 'DEPARTMENT_HEAD')

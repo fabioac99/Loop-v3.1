@@ -1,5 +1,9 @@
 {
   "dependencies": {
+    "@tiptap/extension-image": "^3.19.0",
+    "@tiptap/extension-placeholder": "^3.19.0",
+    "@tiptap/react": "^3.19.0",
+    "@tiptap/starter-kit": "^3.19.0",
     "git": "^0.1.5"
   }
 }

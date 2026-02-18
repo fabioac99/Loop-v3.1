@@ -9,7 +9,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 
 @ApiTags('Tickets')
-@ApiBearerAuth()
+@ApiBearerAuth('access-token')
 @Controller('tickets')
 @UseGuards(JwtAuthGuard)
 export class TicketsController {

@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { FilesService } from '../files/files.service';
 import { TicketStatus, TicketPriority } from '@prisma/client';
 
 @Injectable()
@@ -12,12 +13,13 @@ export class TicketsService {
   constructor(
     private prisma: PrismaService,
     private notifications: NotificationsService,
-  ) { }
+    private filesService: FilesService,
+  ) {}
 
   private checkAccess(ticket: any, user: any) {
     if (user.globalRole === 'GLOBAL_ADMIN') return;
-    if (user.departmentRole === 'DEPARTMENT_HEAD' &&
-      (ticket.toDepartmentId === user.departmentId || ticket.fromDepartmentId === user.departmentId)) return;
+    if (user.departmentRole === 'DEPARTMENT_HEAD' && 
+        (ticket.toDepartmentId === user.departmentId || ticket.fromDepartmentId === user.departmentId)) return;
     if (ticket.createdById === user.id || ticket.assignedToId === user.id) return;
     if (ticket.toDepartmentId === user.departmentId || ticket.fromDepartmentId === user.departmentId) return;
     throw new ForbiddenException('Access denied');
@@ -140,8 +142,9 @@ export class TicketsService {
         ticketNumber, title: data.title, description: data.description,
         status: 'OPEN', priority,
         fromDepartmentId: user.departmentId, toDepartmentId: data.toDepartmentId,
-        subtypeId: data.subtypeId, createdById: user.id,
-        assignedToId: data.assignedToId,
+        subtypeId: data.subtypeId || null,
+        createdById: user.id,
+        assignedToId: data.assignedToId || null,
         dueDate: data.dueDate ? new Date(data.dueDate) : null,
         tags: data.tags || [],
         slaResponseDeadline: new Date(now.getTime() + slaResponseHours * 3600000),
@@ -150,7 +153,7 @@ export class TicketsService {
       include: { fromDepartment: true, toDepartment: true, createdBy: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true } }, assignedTo: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true } } },
     });
 
-    if (data.formData && data.subtypeId) {
+    if (data.formData && data.subtypeId && data.subtypeId.length > 0) {
       const subtype = await this.prisma.requestSubtype.findUnique({ where: { id: data.subtypeId }, include: { formSchema: true } });
       if (subtype?.formSchemaId) {
         await this.prisma.formSubmission.create({
@@ -162,6 +165,12 @@ export class TicketsService {
     await this.prisma.ticketWatcher.create({ data: { ticketId: ticket.id, userId: user.id } });
     await this.prisma.ticketHistory.create({ data: { ticketId: ticket.id, field: 'status', newValue: 'OPEN', changedById: user.id } });
     await this.prisma.auditLog.create({ data: { action: 'TICKET_CREATED', entityType: 'ticket', entityId: ticket.id, userId: user.id, metadata: { ticketNumber, title: data.title } } });
+
+    // Link uploaded attachments to this ticket
+    if (data.attachmentIds?.length) {
+      await this.filesService.linkToTicket(data.attachmentIds, ticket.id);
+    }
+
     await this.notifications.notifyTicketCreated(ticket);
     return ticket;
   }
@@ -208,7 +217,7 @@ export class TicketsService {
     return updated;
   }
 
-  async addMessage(ticketId: string, user: any, data: { content: string; mentions?: string[] }) {
+  async addMessage(ticketId: string, user: any, data: { content: string; mentions?: string[]; attachmentIds?: string[] }) {
     const ticket = await this.prisma.ticket.findUnique({ where: { id: ticketId } });
     if (!ticket) throw new NotFoundException('Ticket not found');
 
@@ -217,9 +226,21 @@ export class TicketsService {
       include: { author: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true } }, attachments: true },
     });
 
+    // Link uploaded attachments to this message
+    if (data.attachmentIds?.length) {
+      await this.filesService.linkToMessage(data.attachmentIds, message.id);
+      // Also link to the ticket
+      await this.filesService.linkToTicket(data.attachmentIds, ticketId);
+    }
+
     await this.prisma.ticket.update({ where: { id: ticketId }, data: { updatedAt: new Date() } });
     await this.notifications.notifyNewMessage(ticket, message, user);
-    return message;
+
+    // Re-fetch with linked attachments
+    return this.prisma.message.findUnique({
+      where: { id: message.id },
+      include: { author: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true } }, attachments: true },
+    });
   }
 
   async editMessage(messageId: string, user: any, content: string) {

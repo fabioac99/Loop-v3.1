@@ -1,8 +1,4 @@
 {
-  "/auth/page": "app/auth/page.js",
-  "/dashboard/tickets/page": "app/dashboard/tickets/page.js",
-  "/dashboard/page": "app/dashboard/page.js",
-  "/dashboard/tickets/[id]/page": "app/dashboard/tickets/[id]/page.js",
-  "/dashboard/settings/page": "app/dashboard/settings/page.js",
-  "/dashboard/forms/page": "app/dashboard/forms/page.js"
+  "/page": "app/page.js",
+  "/dashboard/page": "app/dashboard/page.js"
 }

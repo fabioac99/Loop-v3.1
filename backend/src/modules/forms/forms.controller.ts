@@ -6,7 +6,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 
 @ApiTags('Forms')
-@ApiBearerAuth()
+@ApiBearerAuth('access-token')
 @Controller('forms')
 @UseGuards(JwtAuthGuard)
 export class FormsController {

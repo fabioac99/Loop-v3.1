@@ -3,7 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class NotificationsService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   async getForUser(userId: string, params: { unreadOnly?: boolean; page?: number; limit?: number }) {
     const { unreadOnly = false, page: rawPage, limit: rawLimit } = params;
@@ -30,11 +30,66 @@ export class NotificationsService {
     });
   }
 
+  async markAsUnread(userId: string, notificationId: string) {
+    return this.prisma.notification.updateMany({
+      where: { id: notificationId, userId },
+      data: { isRead: false, readAt: null },
+    });
+  }
+
   async markAllAsRead(userId: string) {
     return this.prisma.notification.updateMany({
       where: { userId, isRead: false },
       data: { isRead: true, readAt: new Date() },
     });
+  }
+
+  async getUnreadTicketIds(userId: string): Promise<string[]> {
+    const notifications = await this.prisma.notification.findMany({
+      where: { userId, isRead: false },
+      select: { data: true },
+    });
+    const ticketIds = new Set<string>();
+    for (const n of notifications) {
+      const d = n.data as any;
+      if (d?.ticketId) ticketIds.add(d.ticketId);
+    }
+    return Array.from(ticketIds);
+  }
+
+  async markTicketNotificationsRead(userId: string, ticketId: string) {
+    // Find all unread notifications for this ticket
+    const notifications = await this.prisma.notification.findMany({
+      where: { userId, isRead: false },
+    });
+    const ids = notifications
+      .filter((n) => (n.data as any)?.ticketId === ticketId)
+      .map((n) => n.id);
+    if (ids.length > 0) {
+      await this.prisma.notification.updateMany({
+        where: { id: { in: ids } },
+        data: { isRead: true, readAt: new Date() },
+      });
+    }
+    return { markedCount: ids.length };
+  }
+
+  async markTicketNotificationsUnread(userId: string, ticketId: string) {
+    // Find the most recent read notifications for this ticket
+    const notifications = await this.prisma.notification.findMany({
+      where: { userId, isRead: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    const ids = notifications
+      .filter((n) => (n.data as any)?.ticketId === ticketId)
+      .map((n) => n.id);
+    if (ids.length > 0) {
+      await this.prisma.notification.updateMany({
+        where: { id: { in: ids } },
+        data: { isRead: false, readAt: null },
+      });
+    }
+    return { markedCount: ids.length };
   }
 
   async create(userId: string, type: string, title: string, content: string, data?: any) {

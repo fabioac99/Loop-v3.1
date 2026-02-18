@@ -5,7 +5,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Notifications')
-@ApiBearerAuth()
+@ApiBearerAuth('access-token')
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
@@ -16,9 +16,32 @@ export class NotificationsController {
     return this.service.getForUser(user.id, { unreadOnly, page });
   }
 
+  // Get ticket IDs that have unread notifications
+  @Get('unread-tickets')
+  getUnreadTicketIds(@CurrentUser() user: any) {
+    return this.service.getUnreadTicketIds(user.id);
+  }
+
   @Patch(':id/read')
   markAsRead(@CurrentUser() user: any, @Param('id') id: string) {
     return this.service.markAsRead(user.id, id);
+  }
+
+  @Patch(':id/unread')
+  markAsUnread(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.service.markAsUnread(user.id, id);
+  }
+
+  // Mark all notifications for a specific ticket as read
+  @Post('ticket/:ticketId/read')
+  markTicketNotificationsRead(@CurrentUser() user: any, @Param('ticketId') ticketId: string) {
+    return this.service.markTicketNotificationsRead(user.id, ticketId);
+  }
+
+  // Mark all notifications for a specific ticket as unread
+  @Post('ticket/:ticketId/unread')
+  markTicketNotificationsUnread(@CurrentUser() user: any, @Param('ticketId') ticketId: string) {
+    return this.service.markTicketNotificationsUnread(user.id, ticketId);
   }
 
   @Post('read-all')
