@@ -22,6 +22,7 @@ const FIELD_TYPES = [
   { value: 'USER_SELECTOR', label: 'User Selector', icon: '👤' },
   { value: 'DEPARTMENT_SELECTOR', label: 'Department', icon: '🏢' },
   { value: 'ENTITY_REFERENCE', label: 'Entity Ref', icon: '🔗' },
+  { value: 'REPEATER', label: '📋 Table / Repeater', icon: '📋' },
   { value: 'GROUP', label: '📁 Sub-form Group', icon: '📁' },
 ];
 
@@ -41,7 +42,17 @@ function makeField(): any {
     colSpan: 12, // default full width
     placeholder: '',
     children: [], // for GROUP type
+    columns: [], // for REPEATER type — defines table columns
+    minRows: 1, maxRows: 50, // for REPEATER
     condition: null,
+  };
+}
+
+function makeRepeaterColumn(): any {
+  return {
+    id: `col_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    type: 'TEXT', label: '', width: 'auto',
+    options: [], placeholder: '', required: false,
   };
 }
 
@@ -61,6 +72,7 @@ function FieldEditor({
 }) {
   const [expanded, setExpanded] = useState(true);
   const isGroup = field.type === 'GROUP';
+  const isRepeater = field.type === 'REPEATER';
   const hasOptions = ['SELECT', 'MULTI_SELECT', 'RADIO_GROUP'].includes(field.type);
 
   const depthColors = ['border-l-primary', 'border-l-amber-400', 'border-l-emerald-400', 'border-l-purple-400', 'border-l-rose-400'];
@@ -69,11 +81,11 @@ function FieldEditor({
   return (
     <div className={`border border-border rounded-xl overflow-hidden ${depth > 0 ? `border-l-[3px] ${depthColor}` : ''}`}>
       {/* Header */}
-      <div className={`flex items-center gap-2 px-3 py-2 ${isGroup ? 'bg-accent/60' : 'bg-card'}`}>
+      <div className={`flex items-center gap-2 px-3 py-2 ${isGroup ? 'bg-accent/60' : isRepeater ? 'bg-amber-500/[0.07]' : 'bg-card'}`}>
         <GripVertical size={14} className="text-muted-foreground cursor-grab shrink-0" />
 
-        {/* Expand/collapse for groups */}
-        {isGroup && (
+        {/* Expand/collapse for groups and repeaters */}
+        {(isGroup || isRepeater) && (
           <button onClick={() => setExpanded(!expanded)} className="p-0.5 hover:bg-accent rounded">
             {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           </button>
@@ -198,6 +210,104 @@ function FieldEditor({
           )}
         </div>
       )}
+
+      {/* Columns (for REPEATER type) */}
+      {isRepeater && expanded && (
+        <div className="border-t border-border bg-amber-500/[0.04] p-3 space-y-3">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+              📋 Table columns ({(field.columns || []).length})
+            </span>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                Min rows: <input type="number" className="w-10 h-6 px-1 rounded bg-secondary border border-border text-[10px] text-center" value={field.minRows || 1} onChange={e => onUpdate(path, { minRows: parseInt(e.target.value) || 1 })} />
+              </label>
+              <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                Max rows: <input type="number" className="w-10 h-6 px-1 rounded bg-secondary border border-border text-[10px] text-center" value={field.maxRows || 50} onChange={e => onUpdate(path, { maxRows: parseInt(e.target.value) || 50 })} />
+              </label>
+              <button onClick={() => {
+                const cols = [...(field.columns || []), makeRepeaterColumn()];
+                onUpdate(path, { columns: cols });
+              }} className="flex items-center gap-1 text-[10px] text-primary hover:underline"><Plus size={10} /> Add column</button>
+            </div>
+          </div>
+
+          {(field.columns || []).length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-4 border border-dashed border-border rounded-lg">
+              No columns defined — add columns to define the table structure
+            </p>
+          ) : (
+            <>
+              {/* Column headers row */}
+              <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${field.columns.length}, 1fr) 36px` }}>
+                {field.columns.map((col: any, ci: number) => (
+                  <div key={col.id} className="border border-border rounded-lg p-2.5 bg-card space-y-2">
+                    <div className="flex items-center gap-1">
+                      <input className="flex-1 h-7 px-2 rounded bg-secondary border border-border text-[11px] font-medium" value={col.label} onChange={e => {
+                        const cols = [...field.columns]; cols[ci] = { ...cols[ci], label: e.target.value }; onUpdate(path, { columns: cols });
+                      }} placeholder="Column header" />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <select className="flex-1 h-6 px-1 rounded bg-secondary border border-border text-[10px]" value={col.type} onChange={e => {
+                        const cols = [...field.columns]; cols[ci] = { ...cols[ci], type: e.target.value }; onUpdate(path, { columns: cols });
+                      }}>
+                        <option value="TEXT">Text</option>
+                        <option value="NUMBER">Number</option>
+                        <option value="SELECT">Dropdown</option>
+                        <option value="DATE">Date</option>
+                        <option value="CHECKBOX">Checkbox</option>
+                        <option value="TEXTAREA">Textarea</option>
+                      </select>
+                      <label className="flex items-center gap-0.5 text-[10px]">
+                        <input type="checkbox" checked={col.required || false} onChange={e => {
+                          const cols = [...field.columns]; cols[ci] = { ...cols[ci], required: e.target.checked }; onUpdate(path, { columns: cols });
+                        }} className="rounded" /> Req
+                      </label>
+                    </div>
+                    {col.type === 'SELECT' && (
+                      <input className="w-full h-6 px-2 rounded bg-secondary border border-border text-[10px]" value={(col.options || []).join(', ')} onChange={e => {
+                        const cols = [...field.columns]; cols[ci] = { ...cols[ci], options: e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean) }; onUpdate(path, { columns: cols });
+                      }} placeholder="Options (comma-separated)" />
+                    )}
+                  </div>
+                ))}
+                {/* Remove column buttons */}
+                <div className="flex flex-col gap-1 justify-center">
+                  {field.columns.map((_: any, ci: number) => (
+                    <button key={ci} onClick={() => {
+                      const cols = field.columns.filter((__: any, i: number) => i !== ci);
+                      onUpdate(path, { columns: cols });
+                    }} className="w-7 h-7 rounded flex items-center justify-center hover:bg-destructive/20 text-destructive"><Trash2 size={10} /></button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Preview row */}
+              <div className="mt-2">
+                <p className="text-[10px] text-muted-foreground mb-1">Preview:</p>
+                <div className="border border-border rounded-lg overflow-hidden">
+                  <div className="grid bg-accent/50" style={{ gridTemplateColumns: `repeat(${field.columns.length}, 1fr) 60px` }}>
+                    {field.columns.map((col: any) => (
+                      <div key={col.id} className="px-2 py-1.5 text-[10px] font-semibold border-r border-border last:border-r-0">
+                        {col.label || 'Untitled'} {col.required && <span className="text-destructive">*</span>}
+                      </div>
+                    ))}
+                    <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground">Actions</div>
+                  </div>
+                  <div className="grid border-t border-border" style={{ gridTemplateColumns: `repeat(${field.columns.length}, 1fr) 60px` }}>
+                    {field.columns.map((col: any) => (
+                      <div key={col.id} className="px-2 py-1.5 border-r border-border last:border-r-0">
+                        <div className="h-6 rounded bg-secondary border border-border" />
+                      </div>
+                    ))}
+                    <div className="px-2 py-1.5 text-[10px] text-destructive">Remove</div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -207,12 +317,38 @@ function FormPreview({ fields }: { fields: any[] }) {
   const renderField = (field: any) => {
     if (field.type === 'GROUP') {
       return (
-        <div className="col-span-12 border border-border rounded-xl p-4 bg-card/50" style={{ gridColumn: `span ${field.colSpan || 12}` }}>
+        <div key={field.id} className="border border-border rounded-xl p-4 bg-card/50" style={{ gridColumn: `span ${field.colSpan || 12}` }}>
           <h4 className="text-sm font-semibold mb-1">{field.label || 'Untitled Group'}</h4>
           {field.description && <p className="text-xs text-muted-foreground mb-3">{field.description}</p>}
           <div className="grid grid-cols-12 gap-3">
             {(field.children || []).map((child: any) => renderField(child))}
           </div>
+        </div>
+      );
+    }
+    if (field.type === 'REPEATER') {
+      const cols = field.columns || [];
+      return (
+        <div key={field.id} style={{ gridColumn: `span ${field.colSpan || 12}` }}>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-xs font-medium">{field.label || 'Table'} {field.required && <span className="text-destructive">*</span>}</label>
+            <span className="text-[10px] text-primary cursor-pointer hover:underline">+ Add row</span>
+          </div>
+          <div className="border border-border rounded-lg overflow-hidden">
+            <div className="grid bg-accent/50" style={{ gridTemplateColumns: `repeat(${cols.length}, 1fr) 60px` }}>
+              {cols.map((col: any) => (
+                <div key={col.id} className="px-3 py-2 text-[10px] font-semibold border-r border-border last:border-r-0">{col.label || 'Col'}{col.required ? ' *' : ''}</div>
+              ))}
+              <div className="px-2 py-2 text-[10px] text-muted-foreground" />
+            </div>
+            <div className="grid border-t border-border" style={{ gridTemplateColumns: `repeat(${cols.length}, 1fr) 60px` }}>
+              {cols.map((col: any) => (
+                <div key={col.id} className="px-2 py-1.5 border-r border-border last:border-r-0"><div className="h-7 rounded bg-secondary border border-border" /></div>
+              ))}
+              <div className="px-2 py-1.5 flex items-center justify-center"><span className="text-[10px] text-destructive cursor-pointer">Remove</span></div>
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1">Rows: {field.minRows || 1}–{field.maxRows || 50}</p>
         </div>
       );
     }

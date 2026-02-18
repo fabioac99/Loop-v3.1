@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
+import logo from '@/images/logo.png'; // Using the '@' alias usually configured in Next.js
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/notifications';
 import { api } from '@/lib/api';
@@ -179,7 +181,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (searchQuery.length >= 2) {
       const timeout = setTimeout(async () => {
-        try { setSearchResults(await api.search(searchQuery)); } catch {}
+        try { setSearchResults(await api.search(searchQuery)); } catch { }
       }, 300);
       return () => clearTimeout(timeout);
     } else { setSearchResults(null); }
@@ -216,10 +218,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Sidebar */}
       <aside className={`${sidebarOpen ? 'w-64' : 'w-[70px]'} ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} fixed md:relative z-40 h-full bg-card border-r border-border flex flex-col transition-all duration-200`}>
         <div className="h-16 flex items-center px-5 gap-3 border-b border-border shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <div className="w-4 h-4 rounded-full border-[2.5px] border-primary" />
+          <div className="w-full h-12 flex items-center px-2 shrink-0 overflow-hidden">
+            <Image
+              src={logo}
+              alt="LOOPing Logo"
+              className="w-full h-auto max-h-10 object-contain object-left"
+              priority
+            />
           </div>
-          {sidebarOpen && <span className="font-bold text-lg tracking-tight">LOOP</span>}
+          {sidebarOpen}
         </div>
         <div className="px-3 pt-4 pb-2">
           <Link href="/dashboard/tickets?new=true"

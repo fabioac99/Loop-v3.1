@@ -346,13 +346,45 @@ export default function TicketDetailPage() {
           {ticket.formSubmission?.data && Object.keys(ticket.formSubmission.data).length > 0 && (
             <div className="bg-card border border-border rounded-2xl p-5">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Form Details</h3>
-              <div className="grid grid-cols-2 gap-3">
-                {Object.entries(ticket.formSubmission.data).filter(([k]) => !k.endsWith('_files')).map(([key, val]: any) => (
-                  <div key={key} className="bg-secondary/50 rounded-lg px-3 py-2">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{key.replace(/_/g, ' ')}</p>
-                    <p className="text-sm font-medium mt-0.5">{Array.isArray(val) ? val.join(', ') : String(val || '-')}</p>
-                  </div>
-                ))}
+              <div className="space-y-3">
+                {/* Regular fields */}
+                <div className="grid grid-cols-2 gap-3">
+                  {Object.entries(ticket.formSubmission.data)
+                    .filter(([k, v]) => !k.endsWith('_files') && !Array.isArray(v))
+                    .map(([key, val]: any) => (
+                    <div key={key} className="bg-secondary/50 rounded-lg px-3 py-2">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{key.replace(/_/g, ' ')}</p>
+                      <p className="text-sm font-medium mt-0.5">{String(val || '-')}</p>
+                    </div>
+                  ))}
+                </div>
+                {/* Table/Repeater fields (arrays of objects) */}
+                {Object.entries(ticket.formSubmission.data)
+                  .filter(([k, v]) => !k.endsWith('_files') && Array.isArray(v) && v.length > 0 && typeof v[0] === 'object')
+                  .map(([key, rows]: any) => {
+                    const colKeys = Object.keys(rows[0] || {});
+                    return (
+                      <div key={key}>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">{key.replace(/_/g, ' ')}</p>
+                        <div className="border border-border rounded-lg overflow-hidden">
+                          <div className="grid bg-accent/50" style={{ gridTemplateColumns: `repeat(${colKeys.length}, 1fr)` }}>
+                            {colKeys.map(ck => (
+                              <div key={ck} className="px-3 py-2 text-[10px] font-semibold border-r border-border last:border-r-0">{ck.replace(/_/g, ' ')}</div>
+                            ))}
+                          </div>
+                          {rows.map((row: any, ri: number) => (
+                            <div key={ri} className="grid border-t border-border" style={{ gridTemplateColumns: `repeat(${colKeys.length}, 1fr)` }}>
+                              {colKeys.map(ck => (
+                                <div key={ck} className="px-3 py-2 text-xs border-r border-border last:border-r-0">{String(row[ck] ?? '-')}</div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-1">{rows.length} row{rows.length !== 1 ? 's' : ''}</p>
+                      </div>
+                    );
+                  })
+                }
               </div>
             </div>
           )}

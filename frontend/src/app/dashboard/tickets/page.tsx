@@ -156,6 +156,107 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
       );
     }
 
+    // REPEATER type: render as an editable table with add/remove rows
+    if (field.type === 'REPEATER') {
+      const cols = field.columns || [];
+      const rows: any[] = form.formData[field.id] || [];
+      const minRows = field.minRows || 1;
+      const maxRows = field.maxRows || 50;
+
+      // Ensure minimum rows exist
+      if (rows.length < minRows) {
+        const emptyRow: any = {};
+        cols.forEach((c: any) => { emptyRow[c.id] = ''; });
+        const padded = [...rows];
+        while (padded.length < minRows) padded.push({ ...emptyRow });
+        // Immediately set
+        if (rows.length === 0) {
+          setTimeout(() => {
+            setForm((prev: any) => ({ ...prev, formData: { ...prev.formData, [field.id]: padded } }));
+          }, 0);
+        }
+      }
+
+      const addRow = () => {
+        if (rows.length >= maxRows) return;
+        const emptyRow: any = {};
+        cols.forEach((c: any) => { emptyRow[c.id] = ''; });
+        setForm({ ...form, formData: { ...form.formData, [field.id]: [...rows, emptyRow] } });
+      };
+
+      const removeRow = (idx: number) => {
+        if (rows.length <= minRows) return;
+        setForm({ ...form, formData: { ...form.formData, [field.id]: rows.filter((_: any, i: number) => i !== idx) } });
+      };
+
+      const updateCell = (rowIdx: number, colId: string, value: any) => {
+        const updated = [...rows];
+        updated[rowIdx] = { ...updated[rowIdx], [colId]: value };
+        setForm({ ...form, formData: { ...form.formData, [field.id]: updated } });
+      };
+
+      const renderCellInput = (col: any, rowIdx: number) => {
+        const val = rows[rowIdx]?.[col.id] ?? '';
+        switch (col.type) {
+          case 'NUMBER': return <input type="number" className="w-full h-9 px-2 rounded-lg bg-secondary border border-border text-sm" value={val} onChange={e => updateCell(rowIdx, col.id, e.target.value)} placeholder={col.placeholder} />;
+          case 'SELECT': return (
+            <select className="w-full h-9 px-2 rounded-lg bg-secondary border border-border text-sm" value={val} onChange={e => updateCell(rowIdx, col.id, e.target.value)}>
+              <option value="">Select...</option>
+              {(col.options || []).map((o: string) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          );
+          case 'DATE': return <input type="date" className="w-full h-9 px-2 rounded-lg bg-secondary border border-border text-sm" value={val} onChange={e => updateCell(rowIdx, col.id, e.target.value)} />;
+          case 'CHECKBOX': return <input type="checkbox" checked={!!val} onChange={e => updateCell(rowIdx, col.id, e.target.checked)} className="rounded" />;
+          case 'TEXTAREA': return <textarea className="w-full h-16 px-2 py-1 rounded-lg bg-secondary border border-border text-sm resize-none" value={val} onChange={e => updateCell(rowIdx, col.id, e.target.value)} placeholder={col.placeholder} />;
+          default: return <input className="w-full h-9 px-2 rounded-lg bg-secondary border border-border text-sm" value={val} onChange={e => updateCell(rowIdx, col.id, e.target.value)} placeholder={col.placeholder} />;
+        }
+      };
+
+      return (
+        <div key={field.id} style={{ gridColumn: `span ${Math.min(field.colSpan || 12, 12)}` }}>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-medium">
+              {field.label} {field.required && <span className="text-destructive">*</span>}
+            </label>
+            <button type="button" onClick={addRow} disabled={rows.length >= maxRows}
+              className="flex items-center gap-1 text-xs text-primary hover:underline disabled:opacity-40 disabled:no-underline">
+              <Plus size={12} /> Add row
+            </button>
+          </div>
+          <div className="border border-border rounded-xl overflow-hidden">
+            {/* Header */}
+            <div className="grid bg-accent/50" style={{ gridTemplateColumns: `repeat(${cols.length}, 1fr) 56px` }}>
+              {cols.map((col: any) => (
+                <div key={col.id} className="px-3 py-2 text-xs font-semibold border-r border-border last:border-r-0">
+                  {col.label}{col.required ? ' *' : ''}
+                </div>
+              ))}
+              <div className="px-2 py-2 text-xs text-muted-foreground" />
+            </div>
+            {/* Rows */}
+            {(rows.length > 0 ? rows : [{}]).map((row: any, rowIdx: number) => (
+              <div key={rowIdx} className="grid border-t border-border" style={{ gridTemplateColumns: `repeat(${cols.length}, 1fr) 56px` }}>
+                {cols.map((col: any) => (
+                  <div key={col.id} className="px-2 py-1.5 border-r border-border last:border-r-0">
+                    {renderCellInput(col, rowIdx)}
+                  </div>
+                ))}
+                <div className="px-2 py-1.5 flex items-center justify-center">
+                  <button type="button" onClick={() => removeRow(rowIdx)} disabled={rows.length <= minRows}
+                    className="text-xs text-destructive hover:underline disabled:opacity-30 disabled:no-underline">
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1">
+            {rows.length} row{rows.length !== 1 ? 's' : ''} · {minRows} min, {maxRows} max
+          </p>
+        </div>
+      );
+    }
+
     // Regular field: render label + input respecting colSpan
     const input = renderFieldInput(field);
     if (!input) return null;

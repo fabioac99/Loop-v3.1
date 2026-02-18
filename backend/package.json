@@ -1,7 +1,7 @@
 {
   "name": "loop-backend",
   "version": "1.0.0",
-  "description": "LOOP - Inter-department Communication Platform API",
+  "description": "LOOP",
   "main": "dist/main.js",
   "scripts": {
     "build": "nest build",
