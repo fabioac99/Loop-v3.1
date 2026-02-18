@@ -163,6 +163,20 @@ export class TicketsService {
     }
 
     await this.prisma.ticketWatcher.create({ data: { ticketId: ticket.id, userId: user.id } });
+
+    // Add additional watchers (CC)
+    if (data.watcherIds?.length) {
+      for (const watcherId of data.watcherIds) {
+        if (watcherId !== user.id) {
+          await this.prisma.ticketWatcher.upsert({
+            where: { ticketId_userId: { ticketId: ticket.id, userId: watcherId } },
+            update: {},
+            create: { ticketId: ticket.id, userId: watcherId },
+          });
+        }
+      }
+    }
+
     await this.prisma.ticketHistory.create({ data: { ticketId: ticket.id, field: 'status', newValue: 'OPEN', changedById: user.id } });
     await this.prisma.auditLog.create({ data: { action: 'TICKET_CREATED', entityType: 'ticket', entityId: ticket.id, userId: user.id, metadata: { ticketNumber, title: data.title } } });
 

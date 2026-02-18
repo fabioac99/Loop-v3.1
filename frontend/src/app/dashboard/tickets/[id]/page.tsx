@@ -8,7 +8,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/notifications';
 import {
   ArrowLeft, Send, Paperclip, Eye, EyeOff, Copy, Clock, AlertTriangle,
-  Loader2, Image as ImageIcon, Bold, Italic, List, X, Bell, BellOff,
+  Loader2, Image as ImageIcon, Bold, Italic, List, X, Bell, BellOff, UserPlus,
 } from 'lucide-react';
 import RichTextEditor from '@/components/common/RichTextEditor';
 import type { UploadedFile } from '@/components/common/RichTextEditor';
@@ -18,6 +18,160 @@ const statusColors: Record<string, string> = {
   WAITING_REPLY: 'bg-purple-500/10 text-purple-500', APPROVED: 'bg-emerald-500/10 text-emerald-500',
   REJECTED: 'bg-red-500/10 text-red-500', CLOSED: 'bg-zinc-500/10 text-zinc-400',
 };
+
+/* ============================== WATCHERS / CC WIDGET ============================== */
+function WatchersWidget({ ticket, onUpdate }: { ticket: any; onUpdate: () => void }) {
+  const { user } = useAuthStore();
+  const [showAdd, setShowAdd] = useState(false);
+  const [users, setUsers] = useState<any[]>([]);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const currentWatcherIds = new Set((ticket.watchers || []).map((w: any) => w.user?.id || w.userId));
+  const isMeWatching = currentWatcherIds.has(user?.id);
+
+  useEffect(() => {
+    if (showAdd) {
+      api.getUsers().then((r) => setUsers(r.data || []));
+    }
+  }, [showAdd]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setShowAdd(false);
+    };
+    if (showAdd) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showAdd]);
+
+  const addWatcher = async (userId: string) => {
+    setLoading(true);
+    try {
+      await api.addWatcher(ticket.id, userId);
+      onUpdate();
+    } catch {} finally { setLoading(false); }
+  };
+
+  const removeWatcher = async (userId: string) => {
+    setLoading(true);
+    try {
+      await api.removeWatcher(ticket.id, userId);
+      onUpdate();
+    } catch {} finally { setLoading(false); }
+  };
+
+  const toggleSelfWatch = async () => {
+    if (isMeWatching) {
+      await removeWatcher(user!.id);
+    } else {
+      await addWatcher(user!.id);
+    }
+  };
+
+  const filteredUsers = users.filter(
+    (u) => !currentWatcherIds.has(u.id) &&
+      (`${u.firstName} ${u.lastName} ${u.email}`).toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="bg-card border border-border rounded-2xl p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          CC / Watchers ({ticket.watchers?.length || 0})
+        </h3>
+        <div className="relative" ref={dropdownRef}>
+          <button
+            onClick={() => setShowAdd(!showAdd)}
+            className="flex items-center gap-1 text-[11px] text-primary hover:underline"
+          >
+            <UserPlus size={12} /> Add
+          </button>
+
+          {/* Add watcher dropdown */}
+          {showAdd && (
+            <div className="absolute right-0 top-full mt-1 w-64 bg-card border border-border rounded-xl shadow-xl z-20 overflow-hidden">
+              <div className="p-2">
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search users..."
+                  className="w-full h-8 px-3 rounded-lg bg-secondary border border-border text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  autoFocus
+                />
+              </div>
+              <div className="max-h-48 overflow-y-auto">
+                {filteredUsers.length === 0 ? (
+                  <p className="px-3 py-4 text-xs text-muted-foreground text-center">No users available</p>
+                ) : (
+                  filteredUsers.slice(0, 15).map((u) => (
+                    <button
+                      key={u.id}
+                      onClick={() => { addWatcher(u.id); setShowAdd(false); setSearch(''); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-accent text-left transition-colors"
+                    >
+                      <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[9px] font-bold text-primary shrink-0">
+                        {u.firstName?.[0]}{u.lastName?.[0]}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium truncate">{u.firstName} {u.lastName}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{u.department?.name || 'No dept'}</p>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Watcher list */}
+      <div className="space-y-1.5">
+        {(ticket.watchers || []).map((w: any) => {
+          const wUser = w.user;
+          const isMe = wUser?.id === user?.id;
+          return (
+            <div key={w.id} className="flex items-center gap-2 group">
+              <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[9px] font-bold text-primary shrink-0">
+                {wUser?.firstName?.[0]}{wUser?.lastName?.[0]}
+              </div>
+              <span className="text-xs flex-1 truncate">
+                {wUser?.firstName} {wUser?.lastName}
+                {isMe && <span className="text-muted-foreground"> (you)</span>}
+              </span>
+              <button
+                onClick={() => removeWatcher(wUser?.id)}
+                className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-all"
+                title="Remove watcher"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Quick self-watch toggle */}
+      <button
+        onClick={toggleSelfWatch}
+        className={`mt-3 w-full flex items-center justify-center gap-1.5 h-8 rounded-lg text-xs font-medium transition-all
+          ${isMeWatching
+            ? 'bg-secondary text-muted-foreground hover:bg-destructive/10 hover:text-destructive'
+            : 'bg-primary/10 text-primary hover:bg-primary/20'
+          }`}
+      >
+        {isMeWatching ? (
+          <><EyeOff size={12} /> Stop watching</>
+        ) : (
+          <><Eye size={12} /> Watch this ticket</>
+        )}
+      </button>
+    </div>
+  );
+}
+
+/* ============================== TICKET DETAIL ============================== */
 
 export default function TicketDetailPage() {
   const { id } = useParams();
@@ -329,14 +483,7 @@ export default function TicketDetailPage() {
             </div>
           </div>
 
-          <div className="bg-card border border-border rounded-2xl p-5">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Watchers ({ticket.watchers?.length || 0})</h3>
-            <div className="flex flex-wrap gap-1">
-              {ticket.watchers?.map((w: any) => (
-                <span key={w.id} className="px-2 py-1 bg-secondary rounded-lg text-xs">{w.user.firstName} {w.user.lastName?.[0]}.</span>
-              ))}
-            </div>
-          </div>
+          <WatchersWidget ticket={ticket} onUpdate={fetchTicket} />
 
           <div className="bg-card border border-border rounded-2xl p-5">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">History</h3>

@@ -1,5 +1,4 @@
 'use client';
-
 import { getApiUrl } from '@/lib/config';
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { Bold, Italic, Underline, List, ListOrdered, Link as LinkIcon, Image, Code, Paperclip, X, Loader2 } from 'lucide-react';

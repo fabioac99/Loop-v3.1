@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/notifications';
-import { Plus, Loader2, ChevronLeft, ChevronRight, Clock, AlertTriangle, Bell } from 'lucide-react';
+import { Plus, Loader2, ChevronLeft, ChevronRight, Clock, AlertTriangle, Bell, X } from 'lucide-react';
 import RichTextEditor from '@/components/common/RichTextEditor';
 import FileAttachment, { type UploadedFile } from '@/components/common/FileAttachment';
 
@@ -28,6 +28,7 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
     assignedToId: '', priority: 'NORMAL', dueDate: '', formData: {} as any,
   });
   const [attachments, setAttachments] = useState<UploadedFile[]>([]);
+  const [ccUserIds, setCcUserIds] = useState<string[]>([]);
   const [selectedSubtype, setSelectedSubtype] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -38,6 +39,7 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
       api.getUsers().then((r) => setUsers(r.data));
       setForm({ title: '', description: '', toDepartmentId: '', subtypeId: '', assignedToId: '', priority: 'NORMAL', dueDate: '', formData: {} });
       setAttachments([]);
+      setCcUserIds([]);
       setSelectedSubtype(null);
       setError('');
     }
@@ -61,8 +63,8 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
     try {
       await api.createTicket({
         ...form,
-        // Include attachment IDs in the description as references
         attachmentIds: attachments.map(a => a.id),
+        watcherIds: ccUserIds,
       });
       onCreated(); onClose();
     } catch (err: any) { setError(err.message); }
@@ -224,6 +226,43 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
             </div>
           </div>
 
+          {/* CC / Watchers */}
+          <div>
+            <label className="block text-sm font-medium mb-1.5">CC / Watchers</label>
+            <div className="border border-border rounded-lg bg-secondary p-2 min-h-[42px]">
+              <div className="flex flex-wrap gap-1.5 mb-1.5">
+                {ccUserIds.map((uid) => {
+                  const u = users.find((x: any) => x.id === uid);
+                  if (!u) return null;
+                  return (
+                    <span key={uid} className="flex items-center gap-1 bg-primary/10 text-primary px-2 py-1 rounded-md text-xs font-medium">
+                      {u.firstName} {u.lastName}
+                      <button type="button" onClick={() => setCcUserIds(ccUserIds.filter(x => x !== uid))} className="hover:text-destructive">
+                        <X size={10} />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+              <select
+                className="w-full h-8 px-2 rounded bg-transparent border-0 text-xs focus:outline-none"
+                value=""
+                onChange={(e) => {
+                  if (e.target.value && !ccUserIds.includes(e.target.value)) {
+                    setCcUserIds([...ccUserIds, e.target.value]);
+                  }
+                  e.target.value = '';
+                }}
+              >
+                <option value="">Add a watcher...</option>
+                {users.filter((u: any) => !ccUserIds.includes(u.id)).map((u: any) => (
+                  <option key={u.id} value={u.id}>{u.firstName} {u.lastName} ({u.department?.name || 'No dept'})</option>
+                ))}
+              </select>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1">Watchers will receive notifications for all updates on this ticket</p>
+          </div>
+
           {error && <p className="text-sm text-destructive bg-destructive/10 px-4 py-2.5 rounded-xl">{error}</p>}
 
           <div className="flex justify-end gap-3 pt-2 border-t border-border">
@@ -242,13 +281,16 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
 /* ============================== TICKETS LIST ============================== */
 export default function TicketsPage() {
   const searchParams = useSearchParams();
-  const { hasUnreadForTicket } = useNotificationStore();
+  const { hasUnreadForTicket, fetchUnreadTicketIds, unreadTicketIds } = useNotificationStore();
   const [tickets, setTickets] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({ status: '', priority: '', search: '' });
   const [showCreate, setShowCreate] = useState(searchParams.get('new') === 'true');
+
+  // Ensure unread ticket IDs are loaded
+  useEffect(() => { fetchUnreadTicketIds(); }, [fetchUnreadTicketIds]);
 
   const fetchTickets = useCallback(async () => {
     setLoading(true);
@@ -312,18 +354,33 @@ export default function TicketsPage() {
               const sla = getSlaStatus(ticket);
               const hasUnread = hasUnreadForTicket(ticket.id);
               return (
-                <Link key={ticket.id} href={`/dashboard/tickets/${ticket.id}`} className={`flex items-center gap-4 p-4 hover:bg-accent/50 transition-all group ${hasUnread ? 'bg-primary/[0.03] border-l-2 border-l-primary' : ''}`}>
-                  <div className={`w-2 h-2 rounded-full shrink-0 ${priorityDots[ticket.priority]}`} />
+                <Link key={ticket.id} href={`/dashboard/tickets/${ticket.id}`}
+                  className={`flex items-center gap-3 p-4 hover:bg-accent/50 transition-all group relative
+                    ${hasUnread ? 'bg-primary/[0.06] border-l-[3px] border-l-primary' : 'border-l-[3px] border-l-transparent'}`}
+                >
+                  {/* Unread pulsing dot */}
+                  {hasUnread ? (
+                    <div className="relative shrink-0">
+                      <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+                      <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-primary animate-ping opacity-40" />
+                    </div>
+                  ) : (
+                    <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${priorityDots[ticket.priority]}`} />
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
-                      {hasUnread && <Bell size={11} className="text-primary fill-primary" />}
+                      {hasUnread && (
+                        <span className="flex items-center gap-1 px-1.5 py-0.5 bg-primary/15 text-primary rounded text-[10px] font-semibold">
+                          <Bell size={10} className="fill-primary" /> NEW
+                        </span>
+                      )}
                       <span className="font-mono text-xs text-muted-foreground">{ticket.ticketNumber}</span>
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${statusColors[ticket.status]}`}>{ticket.status.replace('_', ' ')}</span>
                       {sla === 'red' && <AlertTriangle size={12} className="text-red-400 animate-pulse" />}
                       {sla === 'yellow' && <Clock size={12} className="text-amber-400" />}
                       {ticket.subtype && <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{ticket.subtype.category?.name} / {ticket.subtype.name}</span>}
                     </div>
-                    <p className={`text-sm truncate group-hover:text-primary transition-colors ${hasUnread ? 'font-semibold' : 'font-medium'}`}>{ticket.title}</p>
+                    <p className={`text-sm truncate group-hover:text-primary transition-colors ${hasUnread ? 'font-semibold text-foreground' : 'font-medium'}`}>{ticket.title}</p>
                   </div>
                   <div className="flex items-center gap-4 shrink-0 text-xs text-muted-foreground">
                     <div className="flex items-center gap-1.5">
