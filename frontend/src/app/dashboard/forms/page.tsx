@@ -247,6 +247,156 @@ function FormPreview({ fields }: { fields: any[] }) {
   );
 }
 
+/* ============================== CATEGORY / SUBTYPE MODAL ============================== */
+function CatSubtypeModal({ config, onClose, onSaved, departments, schemas }: {
+  config: { open: boolean; mode: string; data: any };
+  onClose: () => void; onSaved: () => void;
+  departments: any[]; schemas: any[];
+}) {
+  const [form, setForm] = useState<any>({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (config.open) { setForm({ ...config.data }); setError(''); }
+  }, [config]);
+
+  if (!config.open) return null;
+
+  const isCategory = config.mode.includes('category');
+  const isCreate = config.mode.startsWith('create');
+  const title = `${isCreate ? 'Create' : 'Edit'} ${isCategory ? 'Category' : 'Request Type'}`;
+
+  const handleSave = async () => {
+    setSaving(true); setError('');
+    try {
+      if (config.mode === 'create-category') {
+        await api.createCategory({
+          name: form.name, slug: form.slug || form.name.toLowerCase().replace(/\s+/g, '-'),
+          departmentId: form.departmentId, description: form.description,
+        });
+      } else if (config.mode === 'edit-category') {
+        await api.updateCategory(form.id, {
+          name: form.name, slug: form.slug, description: form.description,
+        });
+      } else if (config.mode === 'create-subtype') {
+        await api.createSubtype({
+          name: form.name,
+          slug: form.slug || form.name.toLowerCase().replace(/\s+/g, '-'),
+          categoryId: form.categoryId,
+          formSchemaId: form.formSchemaId || null,
+          description: form.description || null,
+          slaResponseHours: form.slaResponseHours ? parseInt(form.slaResponseHours) : null,
+          slaResolutionHours: form.slaResolutionHours ? parseInt(form.slaResolutionHours) : null,
+          defaultPriority: form.defaultPriority || 'NORMAL',
+        });
+      } else if (config.mode === 'edit-subtype') {
+        await api.updateSubtype(form.id, {
+          name: form.name,
+          slug: form.slug,
+          formSchemaId: form.formSchemaId || null,
+          description: form.description || null,
+          slaResponseHours: form.slaResponseHours ? parseInt(form.slaResponseHours) : null,
+          slaResolutionHours: form.slaResolutionHours ? parseInt(form.slaResolutionHours) : null,
+          defaultPriority: form.defaultPriority || 'NORMAL',
+        });
+      }
+      onSaved(); onClose();
+    } catch (e: any) { setError(e.message); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-card border border-border rounded-2xl w-full max-w-lg m-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="p-5 border-b border-border flex items-center justify-between">
+          <h2 className="text-base font-bold">{title}</h2>
+          <button onClick={onClose} className="p-1 rounded hover:bg-accent text-muted-foreground"><X size={16} /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          {/* Name */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Name <span className="text-destructive">*</span></label>
+            <input className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={isCategory ? 'e.g. IT Support' : 'e.g. Password Reset'} />
+          </div>
+
+          {/* Slug */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Slug</label>
+            <input className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.slug || ''} onChange={e => setForm({ ...form, slug: e.target.value })} placeholder="auto-generated from name" />
+          </div>
+
+          {/* Department (only for category creation) */}
+          {isCategory && (
+            <div>
+              <label className="block text-sm font-medium mb-1">Department <span className="text-destructive">*</span></label>
+              <select className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.departmentId || ''} onChange={e => setForm({ ...form, departmentId: e.target.value })}>
+                <option value="">Select department</option>
+                {departments.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* Form Schema (only for subtype) */}
+          {!isCategory && (
+            <>
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Linked Form Schema
+                  <span className="text-muted-foreground font-normal ml-1">(optional)</span>
+                </label>
+                <select className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.formSchemaId || ''} onChange={e => setForm({ ...form, formSchemaId: e.target.value })}>
+                  <option value="">No form — general request</option>
+                  {schemas.map((s: any) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({((s.schema as any)?.fields || []).length} fields, v{s.version})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-muted-foreground mt-1">When set, users will see this form when creating a request of this type</p>
+              </div>
+
+              {/* SLA */}
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">SLA Response (hrs)</label>
+                  <input type="number" className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.slaResponseHours || ''} onChange={e => setForm({ ...form, slaResponseHours: e.target.value })} placeholder="24" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">SLA Resolution (hrs)</label>
+                  <input type="number" className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.slaResolutionHours || ''} onChange={e => setForm({ ...form, slaResolutionHours: e.target.value })} placeholder="72" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Default Priority</label>
+                  <select className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.defaultPriority || 'NORMAL'} onChange={e => setForm({ ...form, defaultPriority: e.target.value })}>
+                    {['LOW', 'NORMAL', 'HIGH', 'URGENT'].map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Description</label>
+            <textarea className="w-full h-20 px-3 py-2 rounded-lg bg-secondary border border-border text-sm resize-none" value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Optional description..." />
+          </div>
+
+          {error && <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{error}</p>}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button onClick={onClose} className="px-4 h-10 rounded-xl text-sm hover:bg-accent">Cancel</button>
+            <button onClick={handleSave} disabled={saving || !form.name} className="px-5 h-10 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 flex items-center gap-2">
+              {saving && <Loader2 className="animate-spin" size={14} />}
+              {isCreate ? 'Create' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ============================== MAIN PAGE ============================== */
 export default function FormsPage() {
   const [categories, setCategories] = useState<any[]>([]);
@@ -257,6 +407,7 @@ export default function FormsPage() {
   const [showSchemaEditor, setShowSchemaEditor] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [schemaForm, setSchemaForm] = useState({ name: '', description: '', schema: { fields: [] as any[] } });
+  const [catModal, setCatModal] = useState<{ open: boolean; mode: string; data: any }>({ open: false, mode: '', data: {} });
 
   const fetchData = async () => {
     setLoading(true);
@@ -363,48 +514,109 @@ export default function FormsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Categories */}
-        <div className="bg-card border border-border rounded-2xl p-5">
-          <h3 className="text-sm font-semibold mb-4">Request Categories & Subtypes</h3>
+        {/* ===== Categories & Subtypes (with full CRUD + schema linking) ===== */}
+        <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Request Categories & Subtypes</h3>
+            <button onClick={() => {
+              setCatModal({ open: true, mode: 'create-category', data: { name: '', slug: '', departmentId: '', description: '' } });
+            }} className="flex items-center gap-1 text-xs text-primary hover:underline"><Plus size={12} /> Category</button>
+          </div>
           <div className="space-y-3">
+            {categories.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No categories yet</p>}
             {categories.map(cat => (
-              <div key={cat.id} className="border border-border rounded-xl p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.department?.color || '#6366f1' }} />
-                  <span className="font-medium text-sm">{cat.name}</span>
-                  <span className="text-xs text-muted-foreground">({cat.department?.name})</span>
+              <div key={cat.id} className="border border-border rounded-xl overflow-hidden">
+                <div className="flex items-center gap-2 px-3 py-2.5 bg-accent/30">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.department?.color || '#6366f1' }} />
+                  <span className="font-medium text-sm flex-1">{cat.name}</span>
+                  <span className="text-[10px] text-muted-foreground">{cat.department?.name}</span>
+                  <button onClick={() => setCatModal({
+                    open: true, mode: 'edit-category',
+                    data: { id: cat.id, name: cat.name, slug: cat.slug, departmentId: cat.departmentId, description: cat.description || '' }
+                  })} className="p-1 rounded hover:bg-accent text-muted-foreground"><Edit2 size={11} /></button>
+                  <button onClick={() => setCatModal({
+                    open: true, mode: 'create-subtype',
+                    data: { name: '', slug: '', categoryId: cat.id, formSchemaId: '', slaResponseHours: '', slaResolutionHours: '', defaultPriority: 'NORMAL', description: '' }
+                  })} className="p-1 rounded hover:bg-accent text-primary" title="Add subtype"><Plus size={11} /></button>
                 </div>
-                <div className="space-y-1 pl-4">
-                  {cat.subtypes?.map((st: any) => (
-                    <div key={st.id} className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <ChevronRight size={10} /><span>{st.name}</span>
-                      {st.formSchemaId && <span className="px-1.5 py-0.5 bg-primary/10 text-primary rounded text-[10px]">has form</span>}
-                    </div>
-                  ))}
-                </div>
+                {cat.subtypes?.length > 0 && (
+                  <div className="divide-y divide-border">
+                    {cat.subtypes.map((st: any) => {
+                      const linkedSchema = schemas.find((s: any) => s.id === st.formSchemaId);
+                      return (
+                        <div key={st.id} className="flex items-center gap-2 px-4 py-2 text-xs hover:bg-accent/20 group">
+                          <ChevronRight size={10} className="text-muted-foreground shrink-0" />
+                          <span className="font-medium flex-1">{st.name}</span>
+                          {linkedSchema ? (
+                            <span className="px-1.5 py-0.5 bg-primary/10 text-primary rounded text-[10px] flex items-center gap-1 shrink-0">
+                              <FileText size={8} /> {linkedSchema.name}
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-500 rounded text-[10px] shrink-0">no form</span>
+                          )}
+                          <button onClick={() => setCatModal({
+                            open: true, mode: 'edit-subtype',
+                            data: {
+                              id: st.id, name: st.name, slug: st.slug || '', categoryId: st.categoryId,
+                              formSchemaId: st.formSchemaId || '', description: st.description || '',
+                              slaResponseHours: st.slaResponseHours || '', slaResolutionHours: st.slaResolutionHours || '',
+                              defaultPriority: st.defaultPriority || 'NORMAL',
+                            }
+                          })} className="p-1 rounded hover:bg-accent text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"><Edit2 size={11} /></button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </div>
 
-        {/* Schemas */}
+        {/* ===== Form Schemas ===== */}
         <div className="bg-card border border-border rounded-2xl p-5">
           <h3 className="text-sm font-semibold mb-4">Form Schemas ({schemas.length})</h3>
           <div className="space-y-2">
-            {schemas.map(s => (
-              <div key={s.id} className="flex items-center gap-3 p-3 border border-border rounded-xl hover:bg-accent/50 cursor-pointer"
-                onClick={() => { setSelectedSchema(s); setSchemaForm({ name: s.name, description: s.description || '', schema: s.schema || { fields: [] } }); setShowPreview(false); setShowSchemaEditor(true); }}>
-                <FileText size={16} className="text-primary" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{s.name}</p>
-                  <p className="text-xs text-muted-foreground">{countFields((s.schema as any)?.fields || [])} fields &middot; v{s.version}</p>
+            {schemas.map(s => {
+              // Find which subtypes use this schema
+              const linkedSubtypes = categories.flatMap((c: any) =>
+                (c.subtypes || []).filter((st: any) => st.formSchemaId === s.id).map((st: any) => ({ ...st, categoryName: c.name }))
+              );
+              return (
+                <div key={s.id} className="border border-border rounded-xl hover:bg-accent/30 cursor-pointer overflow-hidden"
+                  onClick={() => { setSelectedSchema(s); setSchemaForm({ name: s.name, description: s.description || '', schema: s.schema || { fields: [] } }); setShowPreview(false); setShowSchemaEditor(true); }}>
+                  <div className="flex items-center gap-3 p-3">
+                    <FileText size={16} className="text-primary shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{s.name}</p>
+                      <p className="text-xs text-muted-foreground">{countFields((s.schema as any)?.fields || [])} fields &middot; v{s.version}</p>
+                    </div>
+                    <Edit2 size={14} className="text-muted-foreground shrink-0" />
+                  </div>
+                  {linkedSubtypes.length > 0 && (
+                    <div className="px-3 pb-2.5 flex flex-wrap gap-1">
+                      {linkedSubtypes.map((st: any) => (
+                        <span key={st.id} className="text-[10px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-500 rounded">
+                          {st.categoryName} → {st.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <Edit2 size={14} className="text-muted-foreground" />
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
+
+      {/* ===== Category/Subtype Create/Edit Modal ===== */}
+      <CatSubtypeModal
+        config={catModal}
+        onClose={() => setCatModal({ ...catModal, open: false })}
+        onSaved={fetchData}
+        departments={departments}
+        schemas={schemas}
+      />
 
       {/* Schema Editor — full screen overlay */}
       {showSchemaEditor && (

@@ -136,8 +136,11 @@ class ApiClient {
   createFormSchema(data: any) { return this.post<any>('/forms/schemas', data); }
   updateFormSchema(id: string, data: any) { return this.put<any>(`/forms/schemas/${id}`, data); }
   createCategory(data: any) { return this.post<any>('/forms/categories', data); }
+  updateCategory(id: string, data: any) { return this.put<any>(`/forms/categories/${id}`, data); }
+  deleteCategory(id: string) { return this.delete<any>(`/forms/categories/${id}`); }
   createSubtype(data: any) { return this.post<any>('/forms/subtypes', data); }
   updateSubtype(id: string, data: any) { return this.put<any>(`/forms/subtypes/${id}`, data); }
+  deleteSubtype(id: string) { return this.delete<any>(`/forms/subtypes/${id}`); }
 
   // Analytics
   getAnalytics(params?: any) { return this.get<any>(`/analytics?${new URLSearchParams(params || {})}`); }
