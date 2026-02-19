@@ -204,8 +204,47 @@ async function main() {
     where: { id: 'singleton' }, update: {}, create: { id: 'singleton', counter: 0 },
   });
 
+  // Seed Clients (using raw SQL since no Prisma model)
+  const clientsData = [
+    { name: 'Zara International', code: 'CLT-001', email: 'purchasing@zara.com', taxId: 'ES28050135' },
+    { name: 'H&M Group', code: 'CLT-002', email: 'orders@hm.com', taxId: 'SE556042720' },
+    { name: 'Primark Stores', code: 'CLT-003', email: 'sourcing@primark.com', taxId: 'IE6345427F' },
+    { name: 'Mango Fashion', code: 'CLT-004', email: 'compras@mango.com', taxId: 'ESB08593896' },
+    { name: 'El Corte Inglés', code: 'CLT-005', email: 'moda@elcorteingles.es', taxId: 'ESA28017895' },
+  ];
+  for (const c of clientsData) {
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO clients (id, name, code, email, tax_id)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4)
+       ON CONFLICT (code) DO NOTHING`,
+      c.name, c.code, c.email, c.taxId
+    );
+  }
+
+  // Seed Suppliers (using raw SQL since no Prisma model)
+  const suppliersData = [
+    { name: 'Tecidos Lisboa Lda', code: 'SUP-001', email: 'vendas@tecidoslisboa.pt', taxId: 'PT501234567' },
+    { name: 'Malhas do Norte SA', code: 'SUP-002', email: 'geral@malhasdonorte.pt', taxId: 'PT502345678' },
+    { name: 'Acessórios & Co', code: 'SUP-003', email: 'info@acessorios.pt', taxId: 'PT503456789' },
+    { name: 'Global Fabrics Ltd', code: 'SUP-004', email: 'sales@globalfabrics.uk', taxId: 'GB123456789' },
+    { name: 'Premium Threads SRL', code: 'SUP-005', email: 'contact@premiumthreads.it', taxId: 'IT12345678901' },
+  ];
+  for (const s of suppliersData) {
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO suppliers (id, name, code, email, tax_id)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4)
+       ON CONFLICT (code) DO NOTHING`,
+      s.name, s.code, s.email, s.taxId
+    );
+  }
+
   console.log('✅ Seed completed!');
-  console.log('Admin login: admin@loop.local / Admin123!');
+  console.log('');
+  console.log('👤 Admin login: admin@loop.local / Admin123!');
+  console.log('👤 Demo users: (any)@loop.local / User123!');
+  console.log('🏢 Departments: Sales, Design, Accessories, DAF, Info');
+  console.log('👥 Clients: 5 seeded');
+  console.log('🚚 Suppliers: 5 seeded');
 }
 
 main()

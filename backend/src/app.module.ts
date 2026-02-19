@@ -15,6 +15,7 @@ import { FilesModule } from './modules/files/files.module';
 import { FormsModule } from './modules/forms/forms.module';
 import { SearchModule } from './modules/search/search.module';
 import { GatewayModule } from './modules/gateway/gateway.module';
+import { EntitiesModule } from './modules/entities/entities.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { GatewayModule } from './modules/gateway/gateway.module';
     FormsModule,
     SearchModule,
     GatewayModule,
+    EntitiesModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

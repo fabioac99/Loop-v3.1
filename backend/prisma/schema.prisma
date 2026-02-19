@@ -121,7 +121,6 @@ model User {
   refreshTokens     RefreshToken[]
   passwordResets    PasswordReset[]
   auditLogs         AuditLog[]   @relation("AuditUser")
-  notificationPrefs NotificationPreference[]
   internalNotes     InternalNote[]
 
   @@map("users")
@@ -274,6 +273,7 @@ model Ticket {
   slaPausedAt       DateTime?     @map("sla_paused_at")
   slaPausedDuration Int           @default(0) @map("sla_paused_duration") // seconds
   tags              String[]      @default([])
+  metadata          Json?         // extra data: entity info, etc.
   duplicateOfId     String?       @map("duplicate_of_id")
   closedAt          DateTime?     @map("closed_at")
   createdAt         DateTime      @default(now()) @map("created_at")
@@ -403,21 +403,7 @@ model Notification {
   @@map("notifications")
 }
 
-model NotificationPreference {
-  id          String               @id @default(cuid())
-  userId      String               @map("user_id")
-  eventType   String               @map("event_type")
-  channel     NotificationChannel
-  frequency   NotificationFrequency @default(IMMEDIATE)
-  isEnabled   Boolean              @default(true) @map("is_enabled")
-  createdAt   DateTime             @default(now()) @map("created_at")
-  updatedAt   DateTime             @updatedAt @map("updated_at")
-
-  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, eventType, channel])
-  @@map("notification_preferences")
-}
+// Old per-user NotificationPreference model removed — replaced by global admin-controlled model at bottom of file
 
 model NotificationPolicy {
   id            String               @id @default(cuid())
@@ -502,4 +488,26 @@ model TicketCounter {
   counter Int    @default(0)
 
   @@map("ticket_counter")
+}
+
+// ==================== CLIENTS & SUPPLIERS ====================
+
+// ==================== CLIENTS & SUPPLIERS ====================
+// These tables are managed via raw SQL in EntitiesService.
+// Table definitions are in prisma/migrations/manual_clients_suppliers.sql
+// No Prisma models needed — avoids the prisma.client naming collision.
+
+// ==================== NOTIFICATION PREFERENCES ====================
+
+model NotificationPreference {
+  id          String   @id @default(uuid())
+  eventType   String   @unique @map("event_type")
+  label       String
+  description String?
+  enabled     Boolean  @default(true)
+  channels    Json     @default("[\"in_app\"]")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("notification_preferences")
 }

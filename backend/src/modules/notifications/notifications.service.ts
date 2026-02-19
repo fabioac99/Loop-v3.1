@@ -99,28 +99,56 @@ export class NotificationsService {
   }
 
   async notifyTicketCreated(ticket: any) {
+    const notifiedIds = new Set<string>();
+    notifiedIds.add(ticket.createdById); // Don't notify creator
+
+    // Check if this event type is enabled
+    const pref = await this.prisma.notificationPreference.findUnique({ where: { eventType: 'TICKET_CREATED' } }).catch(() => null);
+    if (pref && !pref.enabled) return;
+
     // Notify assigned user
-    if (ticket.assignedToId) {
+    if (ticket.assignedToId && !notifiedIds.has(ticket.assignedToId)) {
       await this.create(ticket.assignedToId, 'TICKET_ASSIGNED',
         'New ticket assigned to you',
         `Ticket ${ticket.ticketNumber}: ${ticket.title}`,
         { ticketId: ticket.id, ticketNumber: ticket.ticketNumber });
+      notifiedIds.add(ticket.assignedToId);
     }
+
     // Notify target department head
     const heads = await this.prisma.user.findMany({
       where: { departmentId: ticket.toDepartmentId, departmentRole: 'DEPARTMENT_HEAD', isActive: true },
     });
     for (const head of heads) {
-      if (head.id !== ticket.createdById) {
+      if (!notifiedIds.has(head.id)) {
         await this.create(head.id, 'TICKET_CREATED',
           'New ticket for your department',
           `Ticket ${ticket.ticketNumber}: ${ticket.title}`,
           { ticketId: ticket.id, ticketNumber: ticket.ticketNumber });
+        notifiedIds.add(head.id);
+      }
+    }
+
+    // Notify all watchers (CC users added during creation)
+    const watchers = await this.prisma.ticketWatcher.findMany({ where: { ticketId: ticket.id } });
+    for (const w of watchers) {
+      if (!notifiedIds.has(w.userId)) {
+        await this.create(w.userId, 'TICKET_WATCHER_ADDED',
+          'You were added to a ticket',
+          `Ticket ${ticket.ticketNumber}: ${ticket.title}`,
+          { ticketId: ticket.id, ticketNumber: ticket.ticketNumber });
+        notifiedIds.add(w.userId);
       }
     }
   }
 
+  private async isEventEnabled(eventType: string): Promise<boolean> {
+    const pref = await this.prisma.notificationPreference.findUnique({ where: { eventType } }).catch(() => null);
+    return pref ? pref.enabled : true; // default enabled if no row
+  }
+
   async notifyTicketAssigned(ticket: any) {
+    if (!await this.isEventEnabled('TICKET_ASSIGNED')) return;
     if (ticket.assignedToId) {
       await this.create(ticket.assignedToId, 'TICKET_ASSIGNED',
         'Ticket assigned to you',
@@ -130,6 +158,7 @@ export class NotificationsService {
   }
 
   async notifyStatusChanged(ticket: any, oldStatus: string, newStatus: string) {
+    if (!await this.isEventEnabled('STATUS_CHANGED')) return;
     const watchers = await this.prisma.ticketWatcher.findMany({ where: { ticketId: ticket.id } });
     for (const w of watchers) {
       await this.create(w.userId, 'STATUS_CHANGED',
@@ -140,6 +169,7 @@ export class NotificationsService {
   }
 
   async notifyNewMessage(ticket: any, message: any, sender: any) {
+    if (!await this.isEventEnabled('NEW_MESSAGE')) return;
     const watchers = await this.prisma.ticketWatcher.findMany({ where: { ticketId: ticket.id } });
     for (const w of watchers) {
       if (w.userId !== sender.id) {
@@ -161,18 +191,18 @@ export class NotificationsService {
     }
   }
 
-  async getPreferences(userId: string) {
-    return this.prisma.notificationPreference.findMany({ where: { userId } });
+  async getPreferences(_userId: string) {
+    return this.prisma.notificationPreference.findMany({ orderBy: { eventType: 'asc' } });
   }
 
-  async updatePreferences(userId: string, prefs: any[]) {
+  async updatePreferences(_userId: string, prefs: any[]) {
     for (const p of prefs) {
       await this.prisma.notificationPreference.upsert({
-        where: { userId_eventType_channel: { userId, eventType: p.eventType, channel: p.channel } },
-        update: { isEnabled: p.isEnabled, frequency: p.frequency },
-        create: { userId, eventType: p.eventType, channel: p.channel, isEnabled: p.isEnabled, frequency: p.frequency },
+        where: { eventType: p.eventType },
+        update: { enabled: p.enabled, channels: p.channels || ['in_app'] },
+        create: { eventType: p.eventType, label: p.label || p.eventType, enabled: p.enabled, channels: p.channels || ['in_app'] },
       });
     }
-    return this.getPreferences(userId);
+    return this.getPreferences(_userId);
   }
 }

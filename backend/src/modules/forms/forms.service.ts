@@ -72,8 +72,14 @@ export class FormsService {
   }
 
   async updateSchema(id: string, data: any) {
-    if (data.schema) data.version = { increment: 1 };
-    return this.prisma.formSchema.update({ where: { id }, data });
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.schema !== undefined) {
+      updateData.schema = data.schema;
+      updateData.version = { increment: 1 };
+    }
+    return this.prisma.formSchema.update({ where: { id }, data: updateData });
   }
 
   async deleteSchema(id: string) {
