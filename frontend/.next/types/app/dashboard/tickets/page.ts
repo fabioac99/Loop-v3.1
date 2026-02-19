@@ -1,8 +1,8 @@
-// File: /home/loop/loop-platform/loop/frontend/app/dashboard/tickets/page.tsx
-import * as entry from '../../../../../app/dashboard/tickets/page.js'
+// File: /home/loop/loop-platform/loop/frontend/src/app/dashboard/tickets/page.tsx
+import * as entry from '../../../../../src/app/dashboard/tickets/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
-type TEntry = typeof import('../../../../../app/dashboard/tickets/page.js')
+type TEntry = typeof import('../../../../../src/app/dashboard/tickets/page.js')
 
 // Check that the entry is a valid entry
 checkFields<Diff<{

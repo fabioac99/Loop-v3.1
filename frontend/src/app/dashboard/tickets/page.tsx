@@ -6,12 +6,13 @@ import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/notifications';
-import { Plus, Loader2, ChevronLeft, ChevronRight, Clock, AlertTriangle, Bell, X } from 'lucide-react';
+import { Plus, Loader2, ChevronLeft, ChevronRight, Clock, AlertTriangle, Bell, X, User, Building2, PenSquare } from 'lucide-react';
 import RichTextEditor from '@/components/common/RichTextEditor';
 import FileAttachment, { type UploadedFile } from '@/components/common/FileAttachment';
 import EntityTypeSelector from '@/components/common/EntityTypeSelector';
 
 const statusColors: Record<string, string> = {
+  DRAFT: 'bg-zinc-500/10 text-zinc-500 border-zinc-500/20',
   OPEN: 'bg-blue-500/10 text-blue-500 border-blue-500/20', IN_PROGRESS: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
   WAITING_REPLY: 'bg-purple-500/10 text-purple-500 border-purple-500/20', APPROVED: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
   REJECTED: 'bg-red-500/10 text-red-500 border-red-500/20', CLOSED: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20',
@@ -59,8 +60,7 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
     } else { setSelectedSubtype(null); }
   }, [form.subtypeId]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const doSubmit = async (isDraft: boolean) => {
     setLoading(true); setError('');
     try {
       const submitFormData = { ...form.formData };
@@ -70,7 +70,7 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
         submitFormData._entityName = form.entityName;
       }
       await api.createTicket({
-        title: form.title,
+        title: form.title || (isDraft ? 'Untitled Draft' : ''),
         description: form.description,
         toDepartmentId: form.toDepartmentId,
         subtypeId: form.subtypeId,
@@ -80,10 +80,16 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
         formData: submitFormData,
         attachmentIds: attachments.map(a => a.id),
         watcherIds: ccUserIds,
+        isDraft,
       });
       onCreated(); onClose();
     } catch (err: any) { setError(err.message); }
     finally { setLoading(false); }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await doSubmit(false);
   };
 
   const renderFieldInput = (field: any) => {
@@ -434,6 +440,11 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
 
           <div className="flex justify-end gap-3 pt-2 border-t border-border">
             <button type="button" onClick={onClose} className="px-4 h-10 rounded-xl text-sm font-medium hover:bg-accent transition-colors">Cancel</button>
+            <button type="button" disabled={loading} onClick={() => doSubmit(true)}
+              className="px-5 h-10 bg-secondary text-foreground border border-border rounded-xl text-sm font-medium hover:bg-accent disabled:opacity-50 flex items-center gap-2 transition-all">
+              {loading && <Loader2 className="animate-spin" size={14} />}
+              Save as Draft
+            </button>
             <button type="submit" disabled={loading} className="px-6 h-10 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 flex items-center gap-2 transition-all">
               {loading && <Loader2 className="animate-spin" size={14} />}
               Create Request
@@ -448,6 +459,7 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
 /* ============================== TICKETS LIST ============================== */
 export default function TicketsPage() {
   const searchParams = useSearchParams();
+  const { user } = useAuthStore();
   const { fetchUnreadTicketIds, unreadTicketIds } = useNotificationStore();
   const [tickets, setTickets] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
@@ -455,6 +467,16 @@ export default function TicketsPage() {
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({ status: '', priority: '', search: '' });
   const [showCreate, setShowCreate] = useState(searchParams.get('new') === 'true');
+  const isDeptHead = user?.departmentRole === 'DEPARTMENT_HEAD' || user?.globalRole === 'GLOBAL_ADMIN';
+  const [view, setView] = useState<'personal' | 'department' | 'drafts'>('personal');
+  const [showToggle, setShowToggle] = useState(false);
+
+  // Update toggle visibility when user loads
+  useEffect(() => {
+    if (user) {
+      setShowToggle(user.departmentRole === 'DEPARTMENT_HEAD' || user.globalRole === 'GLOBAL_ADMIN');
+    }
+  }, [user]);
 
   // Ensure unread ticket IDs are loaded
   useEffect(() => { fetchUnreadTicketIds(); }, [fetchUnreadTicketIds]);
@@ -466,12 +488,20 @@ export default function TicketsPage() {
       if (filters.status) params.status = filters.status;
       if (filters.priority) params.priority = filters.priority;
       if (filters.search) params.search = filters.search;
+      params.view = view;
+      if (view === 'drafts') params.status = 'DRAFT';
       const data = await api.getTickets(params);
       setTickets(data.data); setTotal(data.total);
     } finally { setLoading(false); }
-  }, [page, filters]);
+  }, [page, filters, view]);
 
   useEffect(() => { fetchTickets(); }, [fetchTickets]);
+
+  // Reset page when switching views
+  const switchView = (v: 'personal' | 'department' | 'drafts') => {
+    setView(v);
+    setPage(1);
+  };
 
   const getSlaStatus = (ticket: any) => {
     if (['CLOSED', 'REJECTED'].includes(ticket.status)) return null;
@@ -495,13 +525,43 @@ export default function TicketsPage() {
         </button>
       </div>
 
+      {/* View tabs — always show My Tickets + Drafts; dept heads also get Department */}
+      <div className="flex gap-1 bg-secondary rounded-xl p-1 w-fit">
+        <button
+          onClick={() => switchView('personal')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            view === 'personal' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <User size={15} /> My Tickets
+        </button>
+        {showToggle && (
+          <button
+            onClick={() => switchView('department')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              view === 'department' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Building2 size={15} /> Department
+          </button>
+        )}
+        <button
+          onClick={() => switchView('drafts')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            view === 'drafts' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <PenSquare size={15} /> Drafts
+        </button>
+      </div>
+
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
         <input placeholder="Search tickets..." value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })}
           className="flex-1 max-w-sm h-10 px-4 rounded-xl bg-card border border-border text-sm" />
         <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} className="h-10 px-3 rounded-xl bg-card border border-border text-sm">
           <option value="">All Status</option>
-          {['OPEN', 'IN_PROGRESS', 'WAITING_REPLY', 'APPROVED', 'REJECTED', 'CLOSED'].map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+          {['DRAFT', 'OPEN', 'IN_PROGRESS', 'WAITING_REPLY', 'APPROVED', 'REJECTED', 'CLOSED'].map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
         </select>
         <select value={filters.priority} onChange={(e) => setFilters({ ...filters, priority: e.target.value })} className="h-10 px-3 rounded-xl bg-card border border-border text-sm">
           <option value="">All Priority</option>

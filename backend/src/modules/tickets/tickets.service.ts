@@ -32,26 +32,53 @@ export class TicketsService {
   }
 
   async findAll(user: any, params: any) {
-    const { page: rawPage, limit: rawLimit, sortBy = 'createdAt', sortOrder = 'desc', ...filters } = params;
+    const { page: rawPage, limit: rawLimit, sortBy = 'createdAt', sortOrder = 'desc', view, ...filters } = params;
     const page = parseInt(rawPage, 10) || 1;
     const limit = parseInt(rawLimit, 10) || 25;
     const where: any = {};
+    const isDeptHead = user.departmentRole === 'DEPARTMENT_HEAD';
 
     if (user.globalRole !== 'GLOBAL_ADMIN') {
-      const orConditions: any[] = [
-        { createdById: user.id },
-        { assignedToId: user.id },
-        { watchers: { some: { userId: user.id } } },
-      ];
-      // Department heads see all tickets to/from their department
-      if (user.departmentRole === 'DEPARTMENT_HEAD') {
-        orConditions.push({ toDepartmentId: user.departmentId });
-        orConditions.push({ fromDepartmentId: user.departmentId });
+      if (view === 'drafts') {
+        // Drafts: only user's own drafts
+        where.createdById = user.id;
+        where.status = 'DRAFT';
+      } else if (view === 'department' && isDeptHead) {
+        // Department view: only department tickets
+        where.OR = [
+          { toDepartmentId: user.departmentId },
+          { fromDepartmentId: user.departmentId },
+        ];
+      } else if (view === 'personal') {
+        // Personal view: only created, assigned, watching
+        where.OR = [
+          { createdById: user.id },
+          { assignedToId: user.id },
+          { watchers: { some: { userId: user.id } } },
+        ];
+      } else {
+        // Default: personal + department for heads
+        const orConditions: any[] = [
+          { createdById: user.id },
+          { assignedToId: user.id },
+          { watchers: { some: { userId: user.id } } },
+        ];
+        if (isDeptHead) {
+          orConditions.push({ toDepartmentId: user.departmentId });
+          orConditions.push({ fromDepartmentId: user.departmentId });
+        }
+        where.OR = orConditions;
       }
-      where.OR = orConditions;
+    } else {
+      // Admin: handle drafts view
+      if (view === 'drafts') {
+        where.createdById = user.id;
+        where.status = 'DRAFT';
+      }
     }
 
-    if (filters.status) where.status = filters.status;
+    // Only apply status filter if not already set by view
+    if (filters.status && view !== 'drafts') where.status = filters.status;
     if (filters.priority) where.priority = filters.priority;
     if (filters.fromDepartmentId) where.fromDepartmentId = filters.fromDepartmentId;
     if (filters.toDepartmentId) where.toDepartmentId = filters.toDepartmentId;
@@ -158,8 +185,8 @@ export class TicketsService {
 
     const ticket = await this.prisma.ticket.create({
       data: {
-        ticketNumber, title: data.title, description: data.description,
-        status: 'OPEN', priority,
+        ticketNumber, title: data.title, description: data.description || '',
+        status: data.isDraft ? 'DRAFT' : 'OPEN', priority,
         fromDepartmentId: user.departmentId, toDepartmentId: data.toDepartmentId,
         subtypeId: data.subtypeId || null,
         createdById: user.id,
@@ -203,7 +230,7 @@ export class TicketsService {
       }
     }
 
-    await this.prisma.ticketHistory.create({ data: { ticketId: ticket.id, field: 'status', newValue: 'OPEN', changedById: user.id } });
+    await this.prisma.ticketHistory.create({ data: { ticketId: ticket.id, field: 'status', newValue: data.isDraft ? 'DRAFT' : 'OPEN', changedById: user.id } });
     await this.prisma.auditLog.create({ data: { action: 'TICKET_CREATED', entityType: 'ticket', entityId: ticket.id, userId: user.id, metadata: { ticketNumber, title: data.title } } });
 
     // Link uploaded attachments to this ticket
@@ -211,7 +238,10 @@ export class TicketsService {
       await this.filesService.linkToTicket(data.attachmentIds, ticket.id);
     }
 
-    await this.notifications.notifyTicketCreated(ticket);
+    // Only notify if not a draft
+    if (!data.isDraft) {
+      await this.notifications.notifyTicketCreated(ticket);
+    }
     return ticket;
   }
 
@@ -369,47 +399,66 @@ export class TicketsService {
     const isAdmin = user.globalRole === 'GLOBAL_ADMIN';
     const isDeptHead = user.departmentRole === 'DEPARTMENT_HEAD';
 
-    // Visibility filter: same logic as findAll
-    let visibleFilter: any = {};
-    if (!isAdmin) {
-      const orConditions: any[] = [
+    const openFilter = { status: { notIn: ['CLOSED', 'REJECTED'] as any } };
+    const ticketIncludes = {
+      fromDepartment: { select: { name: true, color: true } },
+      toDepartment: { select: { name: true, color: true } },
+      createdBy: { select: { firstName: true, lastName: true } },
+    };
+
+    // ---- Personal view (everyone gets this) ----
+    const personalFilter = {
+      OR: [
         { createdById: userId },
         { assignedToId: userId },
         { watchers: { some: { userId } } },
-      ];
-      if (isDeptHead) {
-        orConditions.push({ toDepartmentId: deptId });
-        orConditions.push({ fromDepartmentId: deptId });
-      }
-      visibleFilter = { OR: orConditions };
-    }
+      ],
+    };
 
-    const openFilter = { status: { notIn: ['CLOSED', 'REJECTED'] as any } };
-
-    // "Waiting for me": assigned to me, OR (dept head only) tickets to my department
-    const waitingFilter = isDeptHead
-      ? { OR: [{ assignedToId: userId }, { toDepartmentId: deptId }], ...openFilter }
-      : { assignedToId: userId, ...openFilter };
-
-    const [myOpen, waitingForMe, departmentTickets, watchingCount, recentlyUpdated, byStatus, byPriority, overdueCount] = await Promise.all([
+    const [myOpen, assignedToMe, watchingCount, personalRecent, personalByStatus, personalByPriority, personalOverdue] = await Promise.all([
       this.prisma.ticket.count({ where: { createdById: userId, ...openFilter } }),
-      this.prisma.ticket.count({ where: waitingFilter }),
-      (isDeptHead || isAdmin) && deptId ? this.prisma.ticket.count({ where: { toDepartmentId: deptId, ...openFilter } }) : 0,
+      this.prisma.ticket.count({ where: { assignedToId: userId, ...openFilter } }),
       this.prisma.ticket.count({ where: { watchers: { some: { userId } }, ...openFilter } }),
       this.prisma.ticket.findMany({
-        where: { ...visibleFilter },
-        orderBy: { updatedAt: 'desc' }, take: 10,
-        include: {
-          fromDepartment: { select: { name: true, color: true } },
-          toDepartment: { select: { name: true, color: true } },
-          createdBy: { select: { firstName: true, lastName: true } },
-        },
+        where: personalFilter, orderBy: { updatedAt: 'desc' }, take: 10, include: ticketIncludes,
       }),
-      this.prisma.ticket.groupBy({ by: ['status'], _count: true, where: visibleFilter }),
-      this.prisma.ticket.groupBy({ by: ['priority'], _count: true, where: visibleFilter }),
-      this.prisma.ticket.count({ where: { slaResolutionDeadline: { lt: new Date() }, ...openFilter, ...visibleFilter } }),
+      this.prisma.ticket.groupBy({ by: ['status'], _count: true, where: personalFilter }),
+      this.prisma.ticket.groupBy({ by: ['priority'], _count: true, where: personalFilter }),
+      this.prisma.ticket.count({ where: { slaResolutionDeadline: { lt: new Date() }, ...openFilter, ...personalFilter } }),
     ]);
 
-    return { myOpen, waitingForMe, departmentTickets, watchingCount, recentlyUpdated, byStatus, byPriority, overdueCount };
+    const personal = {
+      myOpen, assignedToMe, watchingCount, overdueCount: personalOverdue,
+      recentlyUpdated: personalRecent, byStatus: personalByStatus, byPriority: personalByPriority,
+    };
+
+    // ---- Department view (dept heads & admins only) ----
+    let department: any = null;
+    if ((isDeptHead || isAdmin) && deptId) {
+      const deptFilter = isAdmin ? {} : {
+        OR: [{ toDepartmentId: deptId }, { fromDepartmentId: deptId }],
+      };
+
+      const [deptTotal, deptOpen, deptWaiting, deptOverdue, deptRecent, deptByStatus, deptByPriority, deptUnassigned] = await Promise.all([
+        this.prisma.ticket.count({ where: deptFilter }),
+        this.prisma.ticket.count({ where: { ...deptFilter, ...openFilter } }),
+        this.prisma.ticket.count({ where: { ...deptFilter, status: 'WAITING_REPLY' as any } }),
+        this.prisma.ticket.count({ where: { ...deptFilter, slaResolutionDeadline: { lt: new Date() }, ...openFilter } }),
+        this.prisma.ticket.findMany({
+          where: deptFilter, orderBy: { updatedAt: 'desc' }, take: 10, include: ticketIncludes,
+        }),
+        this.prisma.ticket.groupBy({ by: ['status'], _count: true, where: deptFilter }),
+        this.prisma.ticket.groupBy({ by: ['priority'], _count: true, where: deptFilter }),
+        this.prisma.ticket.count({ where: { ...deptFilter, assignedToId: null, ...openFilter } }),
+      ]);
+
+      department = {
+        totalTickets: deptTotal, openTickets: deptOpen, waitingReply: deptWaiting,
+        overdueCount: deptOverdue, unassigned: deptUnassigned,
+        recentlyUpdated: deptRecent, byStatus: deptByStatus, byPriority: deptByPriority,
+      };
+    }
+
+    return { personal, department, isDeptHead: isDeptHead || isAdmin };
   }
 }

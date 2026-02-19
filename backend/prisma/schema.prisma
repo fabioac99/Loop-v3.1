@@ -20,6 +20,7 @@ enum DepartmentRole {
 }
 
 enum TicketStatus {
+  DRAFT
   OPEN
   IN_PROGRESS
   WAITING_REPLY
