@@ -85,6 +85,19 @@ export class TicketsService {
     if (filters.assignedToId) where.assignedToId = filters.assignedToId;
     if (filters.createdById) where.createdById = filters.createdById;
     if (filters.tags?.length) where.tags = { hasSome: filters.tags };
+    // KPI filters
+    if (filters.assignedToMe === 'true') {
+      where.assignedToId = user.id;
+      if (!where.status) where.status = { notIn: ['CLOSED', 'REJECTED'] };
+    }
+    if (filters.watchingOnly === 'true') {
+      where.watchers = { some: { userId: user.id } };
+      if (!where.status) where.status = { notIn: ['CLOSED', 'REJECTED'] };
+    }
+    if (filters.unassigned === 'true') {
+      where.assignedToId = null;
+      if (!where.status) where.status = { notIn: ['CLOSED', 'REJECTED'] };
+    }
     if (filters.overdue === true || filters.overdue === 'true') {
       where.slaResolutionDeadline = { lt: new Date() };
       where.status = { notIn: ['CLOSED', 'REJECTED'] };
@@ -460,5 +473,49 @@ export class TicketsService {
     }
 
     return { personal, department, isDeptHead: isDeptHead || isAdmin };
+  }
+
+  async getKpiTickets(user: any, type: string, scope: string) {
+    const userId = user.id;
+    const deptId = user.departmentId;
+    const isDeptHead = user.departmentRole === 'DEPARTMENT_HEAD';
+    const isAdmin = user.globalRole === 'GLOBAL_ADMIN';
+    const openFilter = { status: { notIn: ['CLOSED', 'REJECTED'] as any } };
+    const includes = {
+      fromDepartment: { select: { name: true, color: true } },
+      toDepartment: { select: { name: true, color: true } },
+      createdBy: { select: { firstName: true, lastName: true } },
+      assignedTo: { select: { firstName: true, lastName: true } },
+    };
+
+    let where: any = {};
+
+    if (scope === 'department' && (isDeptHead || isAdmin)) {
+      const deptFilter = isAdmin ? {} : { OR: [{ toDepartmentId: deptId }, { fromDepartmentId: deptId }] };
+      switch (type) {
+        case 'openTickets': where = { ...deptFilter, ...openFilter }; break;
+        case 'waitingReply': where = { ...deptFilter, status: 'WAITING_REPLY' }; break;
+        case 'unassigned': where = { ...deptFilter, assignedToId: null, ...openFilter }; break;
+        case 'totalTickets': where = { ...deptFilter }; break;
+        case 'overdueCount': where = { ...deptFilter, slaResolutionDeadline: { lt: new Date() }, ...openFilter }; break;
+        default: where = deptFilter;
+      }
+    } else {
+      // Personal scope
+      switch (type) {
+        case 'myOpen': where = { createdById: userId, ...openFilter }; break;
+        case 'assignedToMe': where = { assignedToId: userId, ...openFilter }; break;
+        case 'watchingCount': where = { watchers: { some: { userId } }, ...openFilter }; break;
+        case 'overdueCount': where = {
+          OR: [{ createdById: userId }, { assignedToId: userId }, { watchers: { some: { userId } } }],
+          slaResolutionDeadline: { lt: new Date() }, ...openFilter,
+        }; break;
+        default: where = { createdById: userId };
+      }
+    }
+
+    return this.prisma.ticket.findMany({
+      where, orderBy: { updatedAt: 'desc' }, take: 20, include: includes,
+    });
   }
 }

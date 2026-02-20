@@ -139,6 +139,31 @@ function timeAgo(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString();
 }
 
+/* ============================== BRANDING HOOK ============================== */
+function useBranding() {
+  const [branding, setBranding] = useState<{
+    logoUrl: string | null;
+    logoLightUrl: string | null;
+    brandName: string;
+    showBrandName: boolean;
+    expandLogo: boolean;
+  }>({ logoUrl: null, logoLightUrl: null, brandName: 'LOOP', showBrandName: true, expandLogo: false });
+
+  useEffect(() => {
+    api.getSettings().then((s: any) => {
+      setBranding({
+        logoUrl: s.logoFileId ? `${api.baseUrl}/files/${s.logoFileId}` : null,
+        logoLightUrl: s.logoLightFileId ? `${api.baseUrl}/files/${s.logoLightFileId}` : null,
+        brandName: s.brandName || 'LOOP',
+        showBrandName: s.showBrandName ?? true,
+        expandLogo: s.expandLogo ?? false,
+      });
+    }).catch(() => {});
+  }, []);
+
+  return branding;
+}
+
 /* ============================== MAIN LAYOUT ============================== */
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading, isAuthenticated, loadUser, logout, isAdmin } = useAuthStore();
@@ -150,8 +175,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any>(null);
   const [searchFocused, setSearchFocused] = useState(false);
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('loop-theme');
+      return saved ? saved === 'dark' : true;
+    }
+    return true;
+  });
   const [notifOpen, setNotifOpen] = useState(false);
+  const branding = useBranding();
 
   useEffect(() => { loadUser(); }, [loadUser]);
   useEffect(() => {
@@ -174,6 +206,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
+    localStorage.setItem('loop-theme', dark ? 'dark' : 'light');
   }, [dark]);
 
   useEffect(() => {
@@ -217,10 +250,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Sidebar */}
       <aside className={`${sidebarOpen ? 'w-64' : 'w-[70px]'} ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} fixed md:relative z-40 h-full bg-card border-r border-border flex flex-col transition-all duration-200`}>
         <div className="h-16 flex items-center px-5 gap-3 border-b border-border shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <div className="w-4 h-4 rounded-full border-[2.5px] border-primary" />
-          </div>
-          {sidebarOpen && <span className="font-bold text-lg tracking-tight">LOOP</span>}
+          {(() => {
+            const currentLogo = (!dark && branding.logoLightUrl) ? branding.logoLightUrl : branding.logoUrl;
+            const shouldExpand = branding.expandLogo && (!branding.showBrandName || !sidebarOpen);
+            if (currentLogo) {
+              return <img src={currentLogo} alt="Logo" className={`rounded-lg object-contain shrink-0 transition-all ${shouldExpand ? 'h-10 w-auto max-w-[140px]' : 'h-8 w-8'}`} />;
+            }
+            return (
+              <div className={`rounded-lg bg-primary/10 flex items-center justify-center shrink-0 transition-all ${shouldExpand ? 'w-10 h-10' : 'w-8 h-8'}`}>
+                <div className="w-4 h-4 rounded-full border-[2.5px] border-primary" />
+              </div>
+            );
+          })()}
+          {sidebarOpen && branding.showBrandName && <span className="font-bold text-lg tracking-tight">{branding.brandName}</span>}
         </div>
         <div className="px-3 pt-4 pb-2">
           <Link href="/dashboard/tickets?new=true"
@@ -300,8 +342,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             )}
           </div>
 
-          {/* Actions */}
-          <div className="flex items-center gap-2">
+          {/* Actions — pushed to the right */}
+          <div className="flex items-center gap-2 ml-auto shrink-0">
             <button onClick={() => setDark(!dark)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground">
               {dark ? <Sun size={18} /> : <Moon size={18} />}
             </button>

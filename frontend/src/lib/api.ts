@@ -13,6 +13,8 @@ class ApiClient {
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
 
+  get baseUrl() { return API_URL; }
+
   constructor() {
     if (typeof window !== 'undefined') {
       this.accessToken = localStorage.getItem('loop_access_token');
@@ -118,6 +120,7 @@ class ApiClient {
   duplicateTicket(id: string) { return this.post<any>(`/tickets/${id}/duplicate`); }
   executeAction(ticketId: string, action: string) { return this.post<any>(`/tickets/${ticketId}/actions/${action}`); }
   getDashboard() { return this.get<any>('/tickets/dashboard'); }
+  getKpiTickets(type: string, scope: string) { return this.get<any>(`/tickets/dashboard/kpi/${type}?scope=${scope}`); }
 
   // Notifications
   getNotifications(params?: any) { return this.get<any>(`/notifications?${new URLSearchParams(params || {})}`); }
