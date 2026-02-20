@@ -158,7 +158,7 @@ function useBranding() {
         showBrandName: s.showBrandName ?? true,
         expandLogo: s.expandLogo ?? false,
       });
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   return branding;
@@ -212,7 +212,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (searchQuery.length >= 2) {
       const timeout = setTimeout(async () => {
-        try { setSearchResults(await api.search(searchQuery)); } catch {}
+        try { setSearchResults(await api.search(searchQuery)); } catch { }
       }, 300);
       return () => clearTimeout(timeout);
     } else { setSearchResults(null); }

@@ -1,7 +1,5 @@
 {
   "/auth/page": "app/auth/page.js",
-  "/dashboard/page": "app/dashboard/page.js",
-  "/dashboard/tickets/page": "app/dashboard/tickets/page.js",
-  "/dashboard/settings/page": "app/dashboard/settings/page.js",
-  "/dashboard/audit/page": "app/dashboard/audit/page.js"
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/dashboard/page": "app/dashboard/page.js"
 }

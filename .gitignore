@@ -12,6 +12,9 @@ yarn-error.log*
 .env.*.local
 favicon.ico
 logo.png
+#Claude
+tmp*
+
 # Production builds
 dist/
 build/

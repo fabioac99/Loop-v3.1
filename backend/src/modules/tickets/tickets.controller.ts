@@ -13,7 +13,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 @Controller('tickets')
 @UseGuards(JwtAuthGuard)
 export class TicketsController {
-  constructor(private service: TicketsService) {}
+  constructor(private service: TicketsService) { }
 
   @Get()
   findAll(@CurrentUser() user: any, @Query() query: any) {
@@ -23,6 +23,11 @@ export class TicketsController {
   @Get('dashboard')
   getDashboard(@CurrentUser() user: any) {
     return this.service.getDashboard(user);
+  }
+
+  @Get('dashboard/kpi')
+  getKpiTickets(@CurrentUser() user: any, @Query('type') type: string, @Query('scope') scope: string) {
+    return this.service.getKpiTickets(user, type, scope);
   }
 
   @Get(':id')

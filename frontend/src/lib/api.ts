@@ -120,7 +120,7 @@ class ApiClient {
   duplicateTicket(id: string) { return this.post<any>(`/tickets/${id}/duplicate`); }
   executeAction(ticketId: string, action: string) { return this.post<any>(`/tickets/${ticketId}/actions/${action}`); }
   getDashboard() { return this.get<any>('/tickets/dashboard'); }
-  getKpiTickets(type: string, scope: string) { return this.get<any>(`/tickets/dashboard/kpi/${type}?scope=${scope}`); }
+  getKpiTickets(type: string, scope: string) { return this.get<any>(`/tickets/dashboard/kpi?type=${type}&scope=${scope}`); }
 
   // Notifications
   getNotifications(params?: any) { return this.get<any>(`/notifications?${new URLSearchParams(params || {})}`); }
