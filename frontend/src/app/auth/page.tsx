@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/lib/api';
+import Image from 'next/image';
+import logo from '@/images/logo.png'; // Using the '@' alias usually configured in Next.js
 
 function useBranding() {
   const [branding, setBranding] = useState<{
@@ -85,16 +87,17 @@ export default function LoginPage() {
               />
             </div>
           ) : (
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-6">
-              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M16 2C8.268 2 2 8.268 2 16s6.268 14 14 14 14-6.268 14-14S23.732 2 16 2zm0 4a10 10 0 0 1 10 10 10 10 0 0 1-10 10A10 10 0 0 1 6 16 10 10 0 0 1 16 6zm0 3a7 7 0 0 0-7 7 7 7 0 0 0 7 7 7 7 0 0 0 7-7 7 7 0 0 0-7-7z" fill="hsl(var(--primary))" />
-              </svg>
+            <div className="inline-flex items-center justify-center w-80 h-20 rounded-2xl bg-primary/10 mb-6 overflow-hidden">
+              <Image
+                src={logo}
+                alt="LOOPing Logo"
+                className="w-68 h-68 object-contain" // Slightly smaller than the 16x16 container for padding
+                priority
+              />
             </div>
           )}
           {branding.showBrandName && (
             <>
-              <h1 className="text-3xl font-bold tracking-tight">{branding.brandName}</h1>
-              <p className="text-muted-foreground mt-2 text-sm">Inter-department Communication Platform</p>
             </>
           )}
         </div>
