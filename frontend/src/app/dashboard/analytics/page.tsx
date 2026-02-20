@@ -2,8 +2,9 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { Loader2, Download } from 'lucide-react';
+import PermissionGate from '@/components/common/PermissionGate';
 
-export default function AnalyticsPage() {
+function AnalyticsPageContent() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -74,4 +75,8 @@ export default function AnalyticsPage() {
       </div>
     </div>
   );
+}
+
+export default function AnalyticsPage() {
+  return <PermissionGate permission="analytics.view"><AnalyticsPageContent /></PermissionGate>;
 }

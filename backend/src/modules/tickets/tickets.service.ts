@@ -186,6 +186,16 @@ export class TicketsService {
     }
 
     const priority = data.priority || defaultPriority;
+
+    // Override SLA from custom priorities table if available
+    try {
+      const customPriority = await this.prisma.customPriority.findUnique({ where: { name: priority } });
+      if (customPriority) {
+        slaResponseHours = customPriority.slaResponseHours;
+        slaResolutionHours = customPriority.slaResolutionHours;
+      }
+    } catch {}
+
     const now = new Date();
 
     // Build metadata from entity selection

@@ -1,14 +1,9 @@
 {
   "pages": {
-    "/dashboard/page": [
+    "/dashboard/settings/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/page.js"
-    ],
-    "/dashboard/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/layout.js"
+      "static/chunks/app/dashboard/settings/page.js"
     ],
     "/layout": [
       "static/chunks/webpack.js",
@@ -16,15 +11,25 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
+    "/dashboard/tickets/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/dashboard/tickets/page.js"
+    ],
+    "/dashboard/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/dashboard/page.js"
+    ],
     "/auth/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/auth/page.js"
     ],
-    "/dashboard/tickets/page": [
+    "/dashboard/admin/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/tickets/page.js"
+      "static/chunks/app/dashboard/admin/page.js"
     ],
     "/dashboard/users/page": [
       "static/chunks/webpack.js",
@@ -36,15 +41,35 @@
       "static/chunks/main-app.js",
       "static/chunks/app/dashboard/tickets/[id]/page.js"
     ],
-    "/dashboard/settings/page": [
+    "/dashboard/departments/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/settings/page.js"
+      "static/chunks/app/dashboard/departments/page.js"
     ],
     "/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/page.js"
+    ],
+    "/dashboard/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/dashboard/layout.js"
+    ],
+    "/dashboard/analytics/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/dashboard/analytics/page.js"
+    ],
+    "/dashboard/forms/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/dashboard/forms/page.js"
+    ],
+    "/dashboard/entities/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/dashboard/entities/page.js"
     ]
   }
 }

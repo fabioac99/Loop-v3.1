@@ -2,13 +2,13 @@ import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AuditService } from './audit.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { PermissionsGuard, RequirePermissions } from '../auth/guards/permissions.guard';
+
 @ApiTags('Audit')
 @ApiBearerAuth('access-token')
 @Controller('audit')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('GLOBAL_ADMIN')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@RequirePermissions('audit.view')
 export class AuditController {
   constructor(private service: AuditService) {}
   @Get()

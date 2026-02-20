@@ -150,11 +150,17 @@ export class AuthService {
   async getProfile(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { department: true },
+      include: {
+        department: true,
+        permissions: { select: { permissionName: true } },
+      },
     });
     if (!user) throw new UnauthorizedException();
     const { password: _, ...result } = user;
-    return result;
+    return {
+      ...result,
+      permissionNames: user.permissions?.map(p => p.permissionName) || [],
+    };
   }
 
   private async generateTokens(user: any) {

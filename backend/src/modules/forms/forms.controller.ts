@@ -2,8 +2,7 @@ import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } fro
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { FormsService } from './forms.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { PermissionsGuard, RequirePermissions } from '../auth/guards/permissions.guard';
 
 @ApiTags('Forms')
 @ApiBearerAuth('access-token')
@@ -18,18 +17,15 @@ export class FormsController {
   }
 
   @Post('categories')
-  @UseGuards(RolesGuard)
-  @Roles('GLOBAL_ADMIN')
+  @UseGuards(PermissionsGuard) @RequirePermissions('forms.manage')
   createCategory(@Body() body: any) { return this.service.createCategory(body); }
 
   @Put('categories/:id')
-  @UseGuards(RolesGuard)
-  @Roles('GLOBAL_ADMIN')
+  @UseGuards(PermissionsGuard) @RequirePermissions('forms.manage')
   updateCategory(@Param('id') id: string, @Body() body: any) { return this.service.updateCategory(id, body); }
 
   @Delete('categories/:id')
-  @UseGuards(RolesGuard)
-  @Roles('GLOBAL_ADMIN')
+  @UseGuards(PermissionsGuard) @RequirePermissions('forms.manage')
   deleteCategory(@Param('id') id: string) { return this.service.deleteCategory(id); }
 
   @Get('categories/:categoryId/subtypes')
@@ -39,18 +35,15 @@ export class FormsController {
   getSubtype(@Param('id') id: string) { return this.service.getSubtype(id); }
 
   @Post('subtypes')
-  @UseGuards(RolesGuard)
-  @Roles('GLOBAL_ADMIN')
+  @UseGuards(PermissionsGuard) @RequirePermissions('forms.manage')
   createSubtype(@Body() body: any) { return this.service.createSubtype(body); }
 
   @Put('subtypes/:id')
-  @UseGuards(RolesGuard)
-  @Roles('GLOBAL_ADMIN')
+  @UseGuards(PermissionsGuard) @RequirePermissions('forms.manage')
   updateSubtype(@Param('id') id: string, @Body() body: any) { return this.service.updateSubtype(id, body); }
 
   @Delete('subtypes/:id')
-  @UseGuards(RolesGuard)
-  @Roles('GLOBAL_ADMIN')
+  @UseGuards(PermissionsGuard) @RequirePermissions('forms.manage')
   deleteSubtype(@Param('id') id: string) { return this.service.deleteSubtype(id); }
 
   @Get('schemas')
@@ -60,13 +53,11 @@ export class FormsController {
   getSchema(@Param('id') id: string) { return this.service.getSchema(id); }
 
   @Post('schemas')
-  @UseGuards(RolesGuard)
-  @Roles('GLOBAL_ADMIN')
+  @UseGuards(PermissionsGuard) @RequirePermissions('forms.manage')
   createSchema(@Body() body: any) { return this.service.createSchema(body); }
 
   @Put('schemas/:id')
-  @UseGuards(RolesGuard)
-  @Roles('GLOBAL_ADMIN')
+  @UseGuards(PermissionsGuard) @RequirePermissions('forms.manage')
   updateSchema(@Param('id') id: string, @Body() body: any) { return this.service.updateSchema(id, body); }
 
   @Get('hierarchy/:departmentId')

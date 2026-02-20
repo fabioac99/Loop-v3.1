@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth';
-import { useNotificationStore } from '@/stores/notifications';
+import { useNotificationStore, requestNotificationPermission } from '@/stores/notifications';
 import { api } from '@/lib/api';
 import {
   LayoutDashboard, Ticket, Users, Building2, BarChart3, Settings, FileText, Shield,
@@ -158,7 +158,7 @@ function useBranding() {
         showBrandName: s.showBrandName ?? true,
         expandLogo: s.expandLogo ?? false,
       });
-    }).catch(() => { });
+    }).catch(() => {});
   }, []);
 
   return branding;
@@ -185,7 +185,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [notifOpen, setNotifOpen] = useState(false);
   const branding = useBranding();
 
-  useEffect(() => { loadUser(); }, [loadUser]);
+  useEffect(() => { loadUser(); requestNotificationPermission(); }, [loadUser]);
   useEffect(() => {
     if (!isLoading && !isAuthenticated) router.push('/auth');
   }, [isLoading, isAuthenticated, router]);
@@ -212,7 +212,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (searchQuery.length >= 2) {
       const timeout = setTimeout(async () => {
-        try { setSearchResults(await api.search(searchQuery)); } catch { }
+        try { setSearchResults(await api.search(searchQuery)); } catch {}
       }, 300);
       return () => clearTimeout(timeout);
     } else { setSearchResults(null); }
@@ -226,20 +226,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
+  const hp = (p: string) => useAuthStore.getState().hasPermission(p);
+
   const navItems = [
     { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { href: '/dashboard/tickets', icon: Ticket, label: 'Tickets' },
     ...(isAdmin() ? [
-      { href: '/dashboard/users', icon: Users, label: 'Users' },
-      { href: '/dashboard/departments', icon: Building2, label: 'Departments' },
-      { href: '/dashboard/entities', icon: Truck, label: 'Clients & Suppliers' },
-      { href: '/dashboard/forms', icon: FileText, label: 'Form Builder' },
-      { href: '/dashboard/analytics', icon: BarChart3, label: 'Analytics' },
-      { href: '/dashboard/audit', icon: Shield, label: 'Audit Log' },
-      { href: '/dashboard/settings', icon: Settings, label: 'Settings' },
+      { href: '/dashboard/admin', icon: Shield, label: 'Admin Panel' },
     ] : []),
-    ...(useAuthStore.getState().isDeptHead() && !isAdmin() ? [
+    ...(hp('users.manage') ? [
+      { href: '/dashboard/users', icon: Users, label: 'Users' },
+    ] : []),
+    ...(hp('departments.manage') ? [
+      { href: '/dashboard/departments', icon: Building2, label: 'Departments' },
+    ] : []),
+    ...(hp('admin.access') ? [
+      { href: '/dashboard/entities', icon: Truck, label: 'Clients & Suppliers' },
+    ] : []),
+    ...(hp('forms.manage') ? [
+      { href: '/dashboard/forms', icon: FileText, label: 'Form Builder' },
+    ] : []),
+    ...(hp('analytics.view') || useAuthStore.getState().isDeptHead() ? [
       { href: '/dashboard/analytics', icon: BarChart3, label: 'Analytics' },
+    ] : []),
+    ...(hp('audit.view') ? [
+      { href: '/dashboard/audit', icon: Shield, label: 'Audit Log' },
+    ] : []),
+    ...(hp('settings.manage') ? [
+      { href: '/dashboard/settings', icon: Settings, label: 'Settings' },
     ] : []),
   ];
 

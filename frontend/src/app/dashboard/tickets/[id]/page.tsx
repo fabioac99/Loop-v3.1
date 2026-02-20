@@ -9,6 +9,7 @@ import { useNotificationStore } from '@/stores/notifications';
 import {
   ArrowLeft, Send, Paperclip, Eye, EyeOff, Copy, Clock, AlertTriangle,
   Loader2, Image as ImageIcon, Bold, Italic, List, X, Bell, BellOff, UserPlus,
+  Forward, Trash2, Share2,
 } from 'lucide-react';
 import RichTextEditor from '@/components/common/RichTextEditor';
 import type { UploadedFile } from '@/components/common/RichTextEditor';
@@ -244,6 +245,36 @@ export default function TicketDetailPage() {
     router.push(`/dashboard/tickets/${dup.id}`);
   };
 
+  const [showForward, setShowForward] = useState(false);
+  const [forwardTo, setForwardTo] = useState('');
+  const [forwardMsg, setForwardMsg] = useState('');
+  const [forwardUsers, setForwardUsers] = useState<any[]>([]);
+  const [forwarding, setForwarding] = useState(false);
+
+  const loadForwardUsers = async () => {
+    const res = await api.getUsers({ limit: '200' });
+    setForwardUsers((res.data || res).filter((u: any) => u.id !== user?.id));
+  };
+
+  const handleForward = async () => {
+    if (!forwardTo) return;
+    setForwarding(true);
+    try {
+      await api.forwardTicket(ticket.id, forwardTo, forwardMsg);
+      setShowForward(false); setForwardTo(''); setForwardMsg('');
+      fetchTicket();
+    } catch (e: any) { alert(e.message); }
+    finally { setForwarding(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm(`Delete ticket ${ticket.ticketNumber} "${ticket.title}"? This cannot be undone.`)) return;
+    try {
+      await api.deleteTicket(ticket.id);
+      router.push('/dashboard/tickets');
+    } catch (e: any) { alert(e.message); }
+  };
+
   const getSlaInfo = () => {
     if (!ticket?.slaResolutionDeadline || ['CLOSED', 'REJECTED'].includes(ticket.status)) return null;
     const deadline = new Date(ticket.slaResolutionDeadline);
@@ -295,6 +326,14 @@ export default function TicketDetailPage() {
               </div>
             )}
             <button onClick={handleDuplicate} className="h-9 px-3 rounded-lg border border-border text-sm hover:bg-accent" title="Duplicate"><Copy size={14} /></button>
+            <button onClick={() => { setShowForward(true); loadForwardUsers(); }} className="h-9 px-3 rounded-lg border border-border text-sm hover:bg-accent flex items-center gap-1.5" title="Forward">
+              <Share2 size={14} /><span className="hidden sm:inline text-xs">Forward</span>
+            </button>
+            {isAdmin && (
+              <button onClick={handleDelete} className="h-9 px-3 rounded-lg border border-red-500/30 text-red-400 text-sm hover:bg-red-500/10" title="Delete ticket">
+                <Trash2 size={14} />
+              </button>
+            )}
             <button
               onClick={async () => {
                 await markTicketUnread(ticket.id);
@@ -310,6 +349,43 @@ export default function TicketDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Forward Modal */}
+      {showForward && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowForward(false)}>
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <h3 className="font-semibold flex items-center gap-2"><Share2 size={16} /> Forward Ticket</h3>
+              <button onClick={() => setShowForward(false)} className="p-1 hover:bg-accent rounded-lg"><X size={16} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Forward to</label>
+                <select value={forwardTo} onChange={e => setForwardTo(e.target.value)}
+                  className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm">
+                  <option value="">Select user...</option>
+                  {forwardUsers.map((u: any) => (
+                    <option key={u.id} value={u.id}>{u.firstName} {u.lastName} ({u.email})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Message (optional)</label>
+                <textarea className="w-full h-20 px-3 py-2 rounded-lg bg-secondary border border-border text-sm resize-none"
+                  placeholder="Add a note about why you're forwarding this..."
+                  value={forwardMsg} onChange={e => setForwardMsg(e.target.value)} />
+              </div>
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setShowForward(false)} className="h-9 px-4 rounded-lg text-sm hover:bg-accent">Cancel</button>
+                <button onClick={handleForward} disabled={!forwardTo || forwarding}
+                  className="flex items-center gap-2 h-9 px-5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
+                  {forwarding ? <Loader2 className="animate-spin" size={14} /> : <Share2 size={14} />} Forward
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main content */}

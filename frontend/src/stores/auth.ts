@@ -11,6 +11,7 @@ interface User {
   departmentRole: string;
   department?: { id: string; name: string; slug: string; color: string };
   avatar?: string;
+  permissionNames?: string[];
 }
 
 interface AuthState {
@@ -22,6 +23,7 @@ interface AuthState {
   loadUser: () => Promise<void>;
   isAdmin: () => boolean;
   isDeptHead: () => boolean;
+  hasPermission: (perm: string) => boolean;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -57,4 +59,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   isAdmin: () => get().user?.globalRole === 'GLOBAL_ADMIN',
   isDeptHead: () => get().user?.departmentRole === 'DEPARTMENT_HEAD' || get().user?.globalRole === 'GLOBAL_ADMIN',
+  hasPermission: (perm: string) => {
+    const u = get().user;
+    if (!u) return false;
+    if (u.globalRole === 'GLOBAL_ADMIN') return true;
+    return u.permissionNames?.includes(perm) || false;
+  },
 }));

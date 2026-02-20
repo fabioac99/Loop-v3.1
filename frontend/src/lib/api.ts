@@ -107,20 +107,40 @@ class ApiClient {
   getDepartments() { return this.get<any>('/departments'); }
   getDepartment(id: string) { return this.get<any>(`/departments/${id}`); }
   createDepartment(data: any) { return this.post<any>('/departments', data); }
+  updateDepartment(id: string, data: any) { return this.put<any>(`/departments/${id}`, data); }
+  deleteDepartment(id: string) { return this.delete<any>(`/departments/${id}`); }
 
   // Tickets
   getTickets(params?: Record<string, string>) { return this.get<any>(`/tickets?${new URLSearchParams(params || {})}`); }
   getTicket(id: string) { return this.get<any>(`/tickets/${id}`); }
   createTicket(data: any) { return this.post<any>('/tickets', data); }
   updateTicket(id: string, data: any) { return this.patch<any>(`/tickets/${id}`, data); }
+  deleteTicket(id: string) { return this.delete<any>(`/admin/tickets/${id}`); }
   addMessage(ticketId: string, data: any) { return this.post<any>(`/tickets/${ticketId}/messages`, data); }
   addNote(ticketId: string, content: string) { return this.post<any>(`/tickets/${ticketId}/notes`, { content }); }
   addWatcher(ticketId: string, userId: string) { return this.post<any>(`/tickets/${ticketId}/watchers`, { userId }); }
   removeWatcher(ticketId: string, userId: string) { return this.delete<any>(`/tickets/${ticketId}/watchers/${userId}`); }
   duplicateTicket(id: string) { return this.post<any>(`/tickets/${id}/duplicate`); }
   executeAction(ticketId: string, action: string) { return this.post<any>(`/tickets/${ticketId}/actions/${action}`); }
+  forwardTicket(ticketId: string, toUserId: string, message?: string) { return this.post<any>(`/admin/tickets/${ticketId}/forward`, { toUserId, message }); }
+  getTicketForwards(ticketId: string) { return this.get<any>(`/admin/tickets/${ticketId}/forwards`); }
   getDashboard() { return this.get<any>('/tickets/dashboard'); }
-  getKpiTickets(type: string, scope: string) { return this.get<any>(`/tickets/dashboard/kpi?type=${type}&scope=${scope}`); }
+  getKpiTickets(type: string, scope: string) { return this.get<any>(`/tickets/dashboard/kpi/${type}?scope=${scope}`); }
+
+  // Admin
+  getPermissions() { return this.get<any>('/admin/permissions'); }
+  getUserPermissions(userId: string) { return this.get<any>(`/admin/permissions/user/${userId}`); }
+  setUserPermissions(userId: string, permissions: string[]) { return this.put<any>(`/admin/permissions/user/${userId}`, { permissions }); }
+  getMyPermissions() { return this.get<any>('/admin/permissions/my'); }
+  checkPermission(permission: string) { return this.get<any>(`/admin/permissions/check/${permission}`); }
+  getCustomStatuses() { return this.get<any>('/admin/statuses'); }
+  createCustomStatus(data: any) { return this.post<any>('/admin/statuses', data); }
+  updateCustomStatus(id: string, data: any) { return this.put<any>(`/admin/statuses/${id}`, data); }
+  deleteCustomStatus(id: string) { return this.delete<any>(`/admin/statuses/${id}`); }
+  getCustomPriorities() { return this.get<any>('/admin/priorities'); }
+  createCustomPriority(data: any) { return this.post<any>('/admin/priorities', data); }
+  updateCustomPriority(id: string, data: any) { return this.put<any>(`/admin/priorities/${id}`, data); }
+  deleteCustomPriority(id: string) { return this.delete<any>(`/admin/priorities/${id}`); }
 
   // Notifications
   getNotifications(params?: any) { return this.get<any>(`/notifications?${new URLSearchParams(params || {})}`); }

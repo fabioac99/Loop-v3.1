@@ -2,8 +2,9 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { Plus, Loader2, Edit2, Trash2 } from 'lucide-react';
+import PermissionGate from '@/components/common/PermissionGate';
 
-export default function UsersPage() {
+function UsersPageContent() {
   const [users, setUsers] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -166,4 +167,8 @@ export default function UsersPage() {
       )}
     </div>
   );
+}
+
+export default function UsersPage() {
+  return <PermissionGate permission="users.manage"><UsersPageContent /></PermissionGate>;
 }

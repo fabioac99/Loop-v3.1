@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { api } from '@/lib/api';
 import { Settings, Save, Loader2, Bell, BellOff, Upload, Image, X, Globe, Type, Sun, Moon } from 'lucide-react';
+import PermissionGate from '@/components/common/PermissionGate';
 
 const EVENT_TYPE_INFO: Record<string, { icon: string; color: string }> = {
   TICKET_CREATED: { icon: '🎫', color: 'bg-blue-500/10 text-blue-500' },
@@ -13,7 +14,7 @@ const EVENT_TYPE_INFO: Record<string, { icon: string; color: string }> = {
   SLA_BREACH: { icon: '🚨', color: 'bg-red-500/10 text-red-500' },
 };
 
-export default function SettingsPage() {
+function SettingsPageContent() {
   const [settings, setSettings] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -297,4 +298,8 @@ function BrandingSection({ settings, onUpdate }: { settings: any; onUpdate: (upd
       </div>
     </div>
   );
+}
+
+export default function SettingsPage() {
+  return <PermissionGate permission="settings.manage"><SettingsPageContent /></PermissionGate>;
 }

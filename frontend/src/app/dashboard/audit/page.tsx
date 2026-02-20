@@ -2,8 +2,9 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { Loader2, Shield } from 'lucide-react';
+import PermissionGate from '@/components/common/PermissionGate';
 
-export default function AuditPage() {
+function AuditPageContent() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -34,4 +35,8 @@ export default function AuditPage() {
       </div>
     </div>
   );
+}
+
+export default function AuditPage() {
+  return <PermissionGate permission="audit.view"><AuditPageContent /></PermissionGate>;
 }

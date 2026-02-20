@@ -4,6 +4,7 @@ import { api } from '@/lib/api';
 import {
   Loader2, Plus, Edit2, Trash2, Search, X, Users, Truck, Building2,
 } from 'lucide-react';
+import PermissionGate from '@/components/common/PermissionGate';
 
 /* ============================== ENTITY MODAL ============================== */
 function EntityModal({
@@ -235,7 +236,7 @@ function EntityTable({
 }
 
 /* ============================== MAIN PAGE ============================== */
-export default function EntitiesPage() {
+function EntitiesPageContent() {
   const [tab, setTab] = useState<'clients' | 'suppliers'>('clients');
 
   return (
@@ -265,4 +266,8 @@ export default function EntitiesPage() {
       {tab === 'suppliers' && <EntityTable type="supplier" icon={Truck} color="bg-emerald-500" />}
     </div>
   );
+}
+
+export default function EntitiesPage() {
+  return <PermissionGate permission="admin.access"><EntitiesPageContent /></PermissionGate>;
 }

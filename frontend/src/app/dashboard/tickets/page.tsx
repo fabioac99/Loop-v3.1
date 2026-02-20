@@ -356,7 +356,7 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
 
           {/* Client / Supplier selector */}
           <div>
-            <label className="block text-sm font-medium mb-1.5">Related Entity</label>
+            <label className="block text-sm font-medium mb-1.5">Related Entity <span className="text-destructive">*</span></label>
             <EntityTypeSelector
               value={{ type: (form.entityType as any) || '', id: form.entityId, name: form.entityName }}
               onChange={(v) => setForm({ ...form, entityType: v.type || '', entityId: v.id || '', entityName: v.name || '' })}
@@ -385,8 +385,8 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1.5">Assign to</label>
-              <select className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.assignedToId} onChange={(e) => setForm({ ...form, assignedToId: e.target.value })}>
+              <label className="block text-sm font-medium mb-1.5">Assign to  <span className="text-destructive">*</span></label>
+              <select className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.assignedToId} onChange={(e) => setForm({ ...form, assignedToId: e.target.value })} required>
                 <option value="">Unassigned</option>
                 {users.filter((u: any) => u.departmentId === form.toDepartmentId).map((u: any) => (
                   <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
@@ -529,27 +529,24 @@ export default function TicketsPage() {
       <div className="flex gap-1 bg-secondary rounded-xl p-1 w-fit">
         <button
           onClick={() => switchView('personal')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            view === 'personal' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
-          }`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'personal' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
         >
           <User size={15} /> My Tickets
         </button>
         {showToggle && (
           <button
             onClick={() => switchView('department')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              view === 'department' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
-            }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'department' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+              }`}
           >
             <Building2 size={15} /> Department
           </button>
         )}
         <button
           onClick={() => switchView('drafts')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            view === 'drafts' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
-          }`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'drafts' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
         >
           <PenSquare size={15} /> Drafts
         </button>

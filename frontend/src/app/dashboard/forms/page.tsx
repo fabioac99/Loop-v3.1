@@ -5,6 +5,7 @@ import {
   Loader2, Plus, FileText, ChevronRight, ChevronDown, Edit2, Trash2,
   GripVertical, ArrowUp, ArrowDown, Copy, Eye, Columns3, FolderTree, X,
 } from 'lucide-react';
+import PermissionGate from '@/components/common/PermissionGate';
 
 const FIELD_TYPES = [
   { value: 'TEXT', label: 'Text', icon: '𝐓' },
@@ -535,7 +536,7 @@ function CatSubtypeModal({ config, onClose, onSaved, departments, schemas }: {
 }
 
 /* ============================== MAIN PAGE ============================== */
-export default function FormsPage() {
+function FormsPageContent() {
   const [categories, setCategories] = useState<any[]>([]);
   const [schemas, setSchemas] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
@@ -848,4 +849,8 @@ export default function FormsPage() {
       )}
     </div>
   );
+}
+
+export default function FormsPage() {
+  return <PermissionGate permission="forms.manage"><FormsPageContent /></PermissionGate>;
 }
