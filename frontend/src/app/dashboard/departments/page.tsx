@@ -2,8 +2,9 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { Building2, Users, Ticket, Loader2 } from 'lucide-react';
+import PermissionGate from '@/components/common/PermissionGate';
 
-export default function DepartmentsPage() {
+function DepartmentsPageContent() {
   const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -35,4 +36,8 @@ export default function DepartmentsPage() {
       </div>
     </div>
   );
+
+}
+export default function DepartmentsPage() {
+  return <PermissionGate permission="admin.access"><DepartmentsPageContent /></PermissionGate>;
 }
