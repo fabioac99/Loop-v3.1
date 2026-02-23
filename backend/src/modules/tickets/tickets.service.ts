@@ -7,6 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { FilesService } from '../files/files.service';
 import { TicketStatus, TicketPriority } from '@prisma/client';
+import { addWorkHours, parseWorkHoursFromSettings } from '../../common/utils/sla-calculator';
 
 @Injectable()
 export class TicketsService {
@@ -14,13 +15,13 @@ export class TicketsService {
     private prisma: PrismaService,
     private notifications: NotificationsService,
     private filesService: FilesService,
-  ) {}
+  ) { }
 
   private async checkAccess(ticket: any, user: any) {
     if (user.globalRole === 'GLOBAL_ADMIN') return;
     // Department heads can see all tickets to/from their department
-    if (user.departmentRole === 'DEPARTMENT_HEAD' && 
-        (ticket.toDepartmentId === user.departmentId || ticket.fromDepartmentId === user.departmentId)) return;
+    if (user.departmentRole === 'DEPARTMENT_HEAD' &&
+      (ticket.toDepartmentId === user.departmentId || ticket.fromDepartmentId === user.departmentId)) return;
     // Regular users: only created, assigned, or watching
     if (ticket.createdById === user.id || ticket.assignedToId === user.id) return;
     // Check if user is a watcher
@@ -40,24 +41,34 @@ export class TicketsService {
 
     if (user.globalRole !== 'GLOBAL_ADMIN') {
       if (view === 'drafts') {
-        // Drafts: only user's own drafts
         where.createdById = user.id;
         where.status = 'DRAFT';
+      } else if (view === 'archived') {
+        where.isArchived = true;
+        where.OR = [
+          { createdById: user.id },
+          { assignedToId: user.id },
+          { watchers: { some: { userId: user.id } } },
+        ];
+        if (isDeptHead) {
+          where.OR.push({ toDepartmentId: user.departmentId });
+          where.OR.push({ fromDepartmentId: user.departmentId });
+        }
       } else if (view === 'department' && isDeptHead) {
-        // Department view: only department tickets
+        where.isArchived = false;
         where.OR = [
           { toDepartmentId: user.departmentId },
           { fromDepartmentId: user.departmentId },
         ];
       } else if (view === 'personal') {
-        // Personal view: only created, assigned, watching
+        where.isArchived = false;
         where.OR = [
           { createdById: user.id },
           { assignedToId: user.id },
           { watchers: { some: { userId: user.id } } },
         ];
       } else {
-        // Default: personal + department for heads
+        where.isArchived = false;
         const orConditions: any[] = [
           { createdById: user.id },
           { assignedToId: user.id },
@@ -70,10 +81,13 @@ export class TicketsService {
         where.OR = orConditions;
       }
     } else {
-      // Admin: handle drafts view
       if (view === 'drafts') {
         where.createdById = user.id;
         where.status = 'DRAFT';
+      } else if (view === 'archived') {
+        where.isArchived = true;
+      } else {
+        where.isArchived = false;
       }
     }
 
@@ -194,9 +208,19 @@ export class TicketsService {
         slaResponseHours = customPriority.slaResponseHours;
         slaResolutionHours = customPriority.slaResolutionHours;
       }
-    } catch {}
+    } catch { }
 
     const now = new Date();
+
+    // Load work hours config from system settings
+    let workConfig;
+    try {
+      const allSettings = await this.prisma.systemSetting.findMany();
+      const settingsMap = Object.fromEntries(allSettings.map(s => [s.key, s.value]));
+      workConfig = parseWorkHoursFromSettings(settingsMap);
+    } catch {
+      workConfig = undefined;
+    }
 
     // Build metadata from entity selection
     const metadata: any = {};
@@ -217,8 +241,8 @@ export class TicketsService {
         dueDate: data.dueDate ? new Date(data.dueDate) : null,
         tags: data.tags || [],
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
-        slaResponseDeadline: new Date(now.getTime() + slaResponseHours * 3600000),
-        slaResolutionDeadline: new Date(now.getTime() + slaResolutionHours * 3600000),
+        slaResponseDeadline: workConfig ? addWorkHours(now, slaResponseHours, workConfig) : new Date(now.getTime() + slaResponseHours * 3600000),
+        slaResolutionDeadline: workConfig ? addWorkHours(now, slaResolutionHours, workConfig) : new Date(now.getTime() + slaResolutionHours * 3600000),
       },
       include: { fromDepartment: true, toDepartment: true, createdBy: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true } }, assignedTo: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true } } },
     });
@@ -526,6 +550,24 @@ export class TicketsService {
 
     return this.prisma.ticket.findMany({
       where, orderBy: { updatedAt: 'desc' }, take: 20, include: includes,
+    });
+  }
+
+  async archiveTicket(id: string, user: any) {
+    const ticket = await this.prisma.ticket.findUnique({ where: { id } });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    return this.prisma.ticket.update({
+      where: { id },
+      data: { isArchived: true, archivedAt: new Date() },
+    });
+  }
+
+  async unarchiveTicket(id: string, user: any) {
+    const ticket = await this.prisma.ticket.findUnique({ where: { id } });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    return this.prisma.ticket.update({
+      where: { id },
+      data: { isArchived: false, archivedAt: null },
     });
   }
 }

@@ -13,7 +13,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 @Controller('tickets')
 @UseGuards(JwtAuthGuard)
 export class TicketsController {
-  constructor(private service: TicketsService) {}
+  constructor(private service: TicketsService) { }
 
   @Get()
   findAll(@CurrentUser() user: any, @Query() query: any) {
@@ -83,5 +83,15 @@ export class TicketsController {
   @Post(':id/actions/:action')
   executeAction(@Param('id') id: string, @Param('action') action: string, @CurrentUser() user: any) {
     return this.service.executeAction(id, user, action);
+  }
+
+  @Post(':id/archive')
+  archiveTicket(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.archiveTicket(id, user);
+  }
+
+  @Post(':id/unarchive')
+  unarchiveTicket(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.unarchiveTicket(id, user);
   }
 }

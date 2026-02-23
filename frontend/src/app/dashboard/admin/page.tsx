@@ -8,15 +8,17 @@ import {
   ChevronRight, Lock, Palette, AlertTriangle, Clock, Check, ArrowUpDown
 } from 'lucide-react';
 
-type Tab = 'departments' | 'permissions' | 'statuses' | 'priorities';
+type Tab = 'departments' | 'permissions' | 'statuses' | 'priorities' | 'workhours';
 
 export default function AdminPage() {
   const { user } = useAuthStore();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('departments');
 
-  if (user?.globalRole !== 'GLOBAL_ADMIN') {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground">Access denied. Admin only.</div>;
+  const { hasPermission } = useAuthStore();
+
+  if (!hasPermission('admin.access')) {
+    return <div className="flex items-center justify-center h-64 text-muted-foreground">Access denied. You need the Admin Access permission.</div>;
   }
 
   const tabs: { id: Tab; label: string; icon: any }[] = [
@@ -24,6 +26,7 @@ export default function AdminPage() {
     { id: 'permissions', label: 'User Permissions', icon: Lock },
     { id: 'statuses', label: 'Statuses', icon: ArrowUpDown },
     { id: 'priorities', label: 'Priorities & SLA', icon: Clock },
+    { id: 'workhours', label: 'Work Hours', icon: Clock },
   ];
 
   return (
@@ -33,12 +36,11 @@ export default function AdminPage() {
         <h1 className="text-2xl font-bold">Admin Panel</h1>
       </div>
 
-      <div className="flex gap-1 bg-secondary rounded-xl p-1 w-fit">
+      <div className="flex gap-1 bg-secondary rounded-xl p-1 w-fit flex-wrap">
         {tabs.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              tab === t.id ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
-            }`}>
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === t.id ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+              }`}>
             <t.icon size={15} /> {t.label}
           </button>
         ))}
@@ -48,6 +50,7 @@ export default function AdminPage() {
       {tab === 'permissions' && <PermissionsTab />}
       {tab === 'statuses' && <StatusesTab />}
       {tab === 'priorities' && <PrioritiesTab />}
+      {tab === 'workhours' && <WorkHoursTab />}
     </div>
   );
 }
@@ -223,9 +226,8 @@ function PermissionsTab() {
         <div className="space-y-1 max-h-[500px] overflow-y-auto">
           {users.filter((u: any) => u.globalRole !== 'GLOBAL_ADMIN').map((u: any) => (
             <button key={u.id} onClick={() => selectUser(u.id)}
-              className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all ${
-                selectedUser === u.id ? 'bg-primary/10 border border-primary/30' : 'hover:bg-accent'
-              }`}>
+              className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all ${selectedUser === u.id ? 'bg-primary/10 border border-primary/30' : 'hover:bg-accent'
+                }`}>
               <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold">
                 {u.firstName?.[0]}{u.lastName?.[0]}
               </div>
@@ -263,12 +265,10 @@ function PermissionsTab() {
                 <div className="space-y-1">
                   {(perms as any[]).map((p: any) => (
                     <button key={p.name} onClick={() => togglePerm(p.name)}
-                      className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all ${
-                        userPerms.includes(p.name) ? 'bg-primary/10 border border-primary/30' : 'bg-secondary/50 hover:bg-accent border border-transparent'
-                      }`}>
-                      <div className={`w-5 h-5 rounded flex items-center justify-center ${
-                        userPerms.includes(p.name) ? 'bg-primary text-primary-foreground' : 'bg-secondary border border-border'
-                      }`}>
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all ${userPerms.includes(p.name) ? 'bg-primary/10 border border-primary/30' : 'bg-secondary/50 hover:bg-accent border border-transparent'
+                        }`}>
+                      <div className={`w-5 h-5 rounded flex items-center justify-center ${userPerms.includes(p.name) ? 'bg-primary text-primary-foreground' : 'bg-secondary border border-border'
+                        }`}>
                         {userPerms.includes(p.name) && <Check size={12} />}
                       </div>
                       <div className="flex-1">
@@ -529,6 +529,192 @@ function PrioritiesTab() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/* ============================== WORK HOURS TAB ============================== */
+const TIMEZONES = [
+  'Europe/Lisbon', 'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Europe/Madrid',
+  'Europe/Rome', 'Europe/Amsterdam', 'Europe/Brussels', 'Europe/Zurich', 'Europe/Vienna',
+  'Europe/Warsaw', 'Europe/Prague', 'Europe/Budapest', 'Europe/Bucharest', 'Europe/Athens',
+  'Europe/Helsinki', 'Europe/Stockholm', 'Europe/Oslo', 'Europe/Copenhagen', 'Europe/Dublin',
+  'Europe/Moscow', 'Europe/Istanbul',
+  'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+  'America/Toronto', 'America/Sao_Paulo', 'America/Mexico_City', 'America/Argentina/Buenos_Aires',
+  'Asia/Dubai', 'Asia/Kolkata', 'Asia/Shanghai', 'Asia/Tokyo', 'Asia/Singapore', 'Asia/Hong_Kong',
+  'Australia/Sydney', 'Australia/Melbourne', 'Pacific/Auckland',
+  'Africa/Johannesburg', 'Africa/Cairo', 'Africa/Lagos',
+];
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function WorkHoursTab() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    slaWorkStartHour: '9', slaWorkStartMinute: '0',
+    slaWorkEndHour: '18', slaWorkEndMinute: '0',
+    slaLunchStartHour: '12', slaLunchStartMinute: '0',
+    slaLunchEndHour: '13', slaLunchEndMinute: '0',
+    slaTimezone: 'Europe/Lisbon',
+    slaWorkDays: '[1,2,3,4,5]',
+  });
+
+  useEffect(() => {
+    api.getSettings().then((s: any) => {
+      setForm(prev => ({
+        slaWorkStartHour: s.slaWorkStartHour || prev.slaWorkStartHour,
+        slaWorkStartMinute: s.slaWorkStartMinute || prev.slaWorkStartMinute,
+        slaWorkEndHour: s.slaWorkEndHour || prev.slaWorkEndHour,
+        slaWorkEndMinute: s.slaWorkEndMinute || prev.slaWorkEndMinute,
+        slaLunchStartHour: s.slaLunchStartHour || prev.slaLunchStartHour,
+        slaLunchStartMinute: s.slaLunchStartMinute || prev.slaLunchStartMinute,
+        slaLunchEndHour: s.slaLunchEndHour || prev.slaLunchEndHour,
+        slaLunchEndMinute: s.slaLunchEndMinute || prev.slaLunchEndMinute,
+        slaTimezone: s.slaTimezone || prev.slaTimezone,
+        slaWorkDays: s.slaWorkDays || prev.slaWorkDays,
+      }));
+    }).finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try { await api.updateSettings(form); } catch (e: any) { alert(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const workDays: number[] = JSON.parse(form.slaWorkDays || '[1,2,3,4,5]');
+  const toggleDay = (day: number) => {
+    const next = workDays.includes(day) ? workDays.filter(d => d !== day) : [...workDays, day].sort();
+    setForm({ ...form, slaWorkDays: JSON.stringify(next) });
+  };
+
+  const pad = (v: string) => v.padStart(2, '0');
+  const workMinutes = (() => {
+    const ws = parseInt(form.slaWorkStartHour) * 60 + parseInt(form.slaWorkStartMinute);
+    const we = parseInt(form.slaWorkEndHour) * 60 + parseInt(form.slaWorkEndMinute);
+    const ls = parseInt(form.slaLunchStartHour) * 60 + parseInt(form.slaLunchStartMinute);
+    const le = parseInt(form.slaLunchEndHour) * 60 + parseInt(form.slaLunchEndMinute);
+    const lunch = le > ls ? le - ls : 0;
+    return Math.max(0, we - ws - lunch);
+  })();
+
+  if (loading) return <Loader2 className="animate-spin text-primary mx-auto" size={24} />;
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div>
+        <h2 className="text-lg font-semibold">SLA Work Hours</h2>
+        <p className="text-xs text-muted-foreground">SLA timers only count hours within these business hours</p>
+      </div>
+
+      {/* Timezone */}
+      <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+        <h3 className="text-sm font-semibold flex items-center gap-2"><Clock size={14} /> Timezone</h3>
+        <select value={form.slaTimezone} onChange={e => setForm({ ...form, slaTimezone: e.target.value })}
+          className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm">
+          {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>)}
+        </select>
+      </div>
+
+      {/* Work Hours */}
+      <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+        <h3 className="text-sm font-semibold">Work Hours</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium mb-1.5">Start Time</label>
+            <div className="flex gap-2">
+              <select value={form.slaWorkStartHour} onChange={e => setForm({ ...form, slaWorkStartHour: e.target.value })}
+                className="flex-1 h-10 px-3 rounded-lg bg-secondary border border-border text-sm">
+                {Array.from({ length: 24 }, (_, i) => <option key={i} value={String(i)}>{pad(String(i))}:00</option>)}
+              </select>
+              <select value={form.slaWorkStartMinute} onChange={e => setForm({ ...form, slaWorkStartMinute: e.target.value })}
+                className="w-20 h-10 px-3 rounded-lg bg-secondary border border-border text-sm">
+                {['0', '15', '30', '45'].map(m => <option key={m} value={m}>:{pad(m)}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1.5">End Time</label>
+            <div className="flex gap-2">
+              <select value={form.slaWorkEndHour} onChange={e => setForm({ ...form, slaWorkEndHour: e.target.value })}
+                className="flex-1 h-10 px-3 rounded-lg bg-secondary border border-border text-sm">
+                {Array.from({ length: 24 }, (_, i) => <option key={i} value={String(i)}>{pad(String(i))}:00</option>)}
+              </select>
+              <select value={form.slaWorkEndMinute} onChange={e => setForm({ ...form, slaWorkEndMinute: e.target.value })}
+                className="w-20 h-10 px-3 rounded-lg bg-secondary border border-border text-sm">
+                {['0', '15', '30', '45'].map(m => <option key={m} value={m}>:{pad(m)}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Lunch Break */}
+      <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+        <h3 className="text-sm font-semibold">Lunch Break</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium mb-1.5">Lunch Start</label>
+            <div className="flex gap-2">
+              <select value={form.slaLunchStartHour} onChange={e => setForm({ ...form, slaLunchStartHour: e.target.value })}
+                className="flex-1 h-10 px-3 rounded-lg bg-secondary border border-border text-sm">
+                {Array.from({ length: 24 }, (_, i) => <option key={i} value={String(i)}>{pad(String(i))}:00</option>)}
+              </select>
+              <select value={form.slaLunchStartMinute} onChange={e => setForm({ ...form, slaLunchStartMinute: e.target.value })}
+                className="w-20 h-10 px-3 rounded-lg bg-secondary border border-border text-sm">
+                {['0', '15', '30', '45'].map(m => <option key={m} value={m}>:{pad(m)}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1.5">Lunch End</label>
+            <div className="flex gap-2">
+              <select value={form.slaLunchEndHour} onChange={e => setForm({ ...form, slaLunchEndHour: e.target.value })}
+                className="flex-1 h-10 px-3 rounded-lg bg-secondary border border-border text-sm">
+                {Array.from({ length: 24 }, (_, i) => <option key={i} value={String(i)}>{pad(String(i))}:00</option>)}
+              </select>
+              <select value={form.slaLunchEndMinute} onChange={e => setForm({ ...form, slaLunchEndMinute: e.target.value })}
+                className="w-20 h-10 px-3 rounded-lg bg-secondary border border-border text-sm">
+                {['0', '15', '30', '45'].map(m => <option key={m} value={m}>:{pad(m)}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Work Days */}
+      <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+        <h3 className="text-sm font-semibold">Work Days</h3>
+        <div className="flex gap-2">
+          {DAY_NAMES.map((name, i) => (
+            <button key={i} onClick={() => toggleDay(i)}
+              className={`w-12 h-10 rounded-lg text-sm font-medium transition-all ${workDays.includes(i) ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:bg-accent'
+                }`}>
+              {name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Summary */}
+      <div className="bg-primary/5 border border-primary/20 rounded-2xl p-5">
+        <h3 className="text-sm font-semibold mb-2">Summary</h3>
+        <div className="text-sm text-muted-foreground space-y-1">
+          <p>Work hours: <strong className="text-foreground">{pad(form.slaWorkStartHour)}:{pad(form.slaWorkStartMinute)} — {pad(form.slaWorkEndHour)}:{pad(form.slaWorkEndMinute)}</strong></p>
+          <p>Lunch break: <strong className="text-foreground">{pad(form.slaLunchStartHour)}:{pad(form.slaLunchStartMinute)} — {pad(form.slaLunchEndHour)}:{pad(form.slaLunchEndMinute)}</strong></p>
+          <p>Effective work time per day: <strong className="text-foreground">{Math.floor(workMinutes / 60)}h {workMinutes % 60}m</strong></p>
+          <p>Work days: <strong className="text-foreground">{workDays.map(d => DAY_NAMES[d]).join(', ')}</strong></p>
+          <p>Timezone: <strong className="text-foreground">{form.slaTimezone}</strong></p>
+          <p className="text-xs mt-2 italic">Example: A "24 work hours" SLA at {Math.floor(workMinutes / 60)}h/day = ~{Math.ceil(24 * 60 / workMinutes)} business days</p>
+        </div>
+      </div>
+
+      <button onClick={handleSave} disabled={saving}
+        className="flex items-center gap-2 h-10 px-6 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50">
+        {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />} Save Work Hours
+      </button>
     </div>
   );
 }

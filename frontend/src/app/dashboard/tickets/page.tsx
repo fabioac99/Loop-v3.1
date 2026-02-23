@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/notifications';
-import { Plus, Loader2, ChevronLeft, ChevronRight, Clock, AlertTriangle, Bell, X, User, Building2, PenSquare } from 'lucide-react';
+import { Plus, Loader2, ChevronLeft, ChevronRight, Clock, AlertTriangle, Bell, X, User, Building2, PenSquare, Archive } from 'lucide-react';
 import RichTextEditor from '@/components/common/RichTextEditor';
 import FileAttachment, { type UploadedFile } from '@/components/common/FileAttachment';
 import EntityTypeSelector from '@/components/common/EntityTypeSelector';
@@ -356,7 +356,7 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
 
           {/* Client / Supplier selector */}
           <div>
-            <label className="block text-sm font-medium mb-1.5">Related Entity <span className="text-destructive">*</span></label>
+            <label className="block text-sm font-medium mb-1.5">Related Entity</label>
             <EntityTypeSelector
               value={{ type: (form.entityType as any) || '', id: form.entityId, name: form.entityName }}
               onChange={(v) => setForm({ ...form, entityType: v.type || '', entityId: v.id || '', entityName: v.name || '' })}
@@ -385,8 +385,8 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1.5">Assign to  <span className="text-destructive">*</span></label>
-              <select className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.assignedToId} onChange={(e) => setForm({ ...form, assignedToId: e.target.value })} required>
+              <label className="block text-sm font-medium mb-1.5">Assign to</label>
+              <select className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.assignedToId} onChange={(e) => setForm({ ...form, assignedToId: e.target.value })}>
                 <option value="">Unassigned</option>
                 {users.filter((u: any) => u.departmentId === form.toDepartmentId).map((u: any) => (
                   <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
@@ -468,7 +468,7 @@ export default function TicketsPage() {
   const [filters, setFilters] = useState({ status: '', priority: '', search: '' });
   const [showCreate, setShowCreate] = useState(searchParams.get('new') === 'true');
   const isDeptHead = user?.departmentRole === 'DEPARTMENT_HEAD' || user?.globalRole === 'GLOBAL_ADMIN';
-  const [view, setView] = useState<'personal' | 'department' | 'drafts'>('personal');
+  const [view, setView] = useState<'personal' | 'department' | 'drafts' | 'archived'>('personal');
   const [showToggle, setShowToggle] = useState(false);
 
   // Update toggle visibility when user loads
@@ -498,7 +498,7 @@ export default function TicketsPage() {
   useEffect(() => { fetchTickets(); }, [fetchTickets]);
 
   // Reset page when switching views
-  const switchView = (v: 'personal' | 'department' | 'drafts') => {
+  const switchView = (v: 'personal' | 'department' | 'drafts' | 'archived') => {
     setView(v);
     setPage(1);
   };
@@ -549,6 +549,13 @@ export default function TicketsPage() {
             }`}
         >
           <PenSquare size={15} /> Drafts
+        </button>
+        <button
+          onClick={() => switchView('archived')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'archived' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
+        >
+          <Archive size={15} /> Archived
         </button>
       </div>
 

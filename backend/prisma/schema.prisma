@@ -281,6 +281,8 @@ model Ticket {
   tags              String[]      @default([])
   metadata          Json?         // extra data: entity info, etc.
   duplicateOfId     String?       @map("duplicate_of_id")
+  isArchived        Boolean       @default(false) @map("is_archived")
+  archivedAt        DateTime?     @map("archived_at")
   closedAt          DateTime?     @map("closed_at")
   createdAt         DateTime      @default(now()) @map("created_at")
   updatedAt         DateTime      @updatedAt @map("updated_at")

@@ -121,6 +121,8 @@ class ApiClient {
   addWatcher(ticketId: string, userId: string) { return this.post<any>(`/tickets/${ticketId}/watchers`, { userId }); }
   removeWatcher(ticketId: string, userId: string) { return this.delete<any>(`/tickets/${ticketId}/watchers/${userId}`); }
   duplicateTicket(id: string) { return this.post<any>(`/tickets/${id}/duplicate`); }
+  archiveTicket(id: string) { return this.post<any>(`/tickets/${id}/archive`); }
+  unarchiveTicket(id: string) { return this.post<any>(`/tickets/${id}/unarchive`); }
   executeAction(ticketId: string, action: string) { return this.post<any>(`/tickets/${ticketId}/actions/${action}`); }
   forwardTicket(ticketId: string, toUserId: string, message?: string) { return this.post<any>(`/admin/tickets/${ticketId}/forward`, { toUserId, message }); }
   getTicketForwards(ticketId: string) { return this.get<any>(`/admin/tickets/${ticketId}/forwards`); }
