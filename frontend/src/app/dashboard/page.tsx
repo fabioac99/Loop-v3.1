@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/notifications';
 import {
   Ticket, Clock, AlertTriangle, CheckCircle2, ArrowUpRight, Loader2,
-  Eye, Bell, Building2, User, UserCheck, Inbox, X,
+  Eye, Bell, Building2, User, UserCheck, Inbox, X, TrendingUp, TrendingDown,
+  Timer, ShieldCheck, BarChart3, Users, Activity, Minus,
 } from 'lucide-react';
 
 const statusColors: Record<string, string> = {
@@ -16,9 +17,14 @@ const statusColors: Record<string, string> = {
   WAITING_REPLY: 'bg-purple-500/10 text-purple-500', APPROVED: 'bg-emerald-500/10 text-emerald-500',
   REJECTED: 'bg-red-500/10 text-red-500', CLOSED: 'bg-zinc-500/10 text-zinc-400',
 };
+const statusBarColors: Record<string, string> = {
+  OPEN: '#3b82f6', IN_PROGRESS: '#f59e0b', WAITING_REPLY: '#a855f7',
+  APPROVED: '#10b981', REJECTED: '#ef4444', CLOSED: '#71717a', DRAFT: '#a1a1aa',
+};
+const priorityColors: Record<string, string> = { LOW: '#a1a1aa', NORMAL: '#60a5fa', HIGH: '#fbbf24', URGENT: '#f87171' };
 const priorityDots: Record<string, string> = { LOW: 'bg-zinc-400', NORMAL: 'bg-blue-400', HIGH: 'bg-amber-400', URGENT: 'bg-red-400' };
-const priorityColors: Record<string, string> = { LOW: 'text-zinc-400', NORMAL: 'text-blue-400', HIGH: 'text-amber-400', URGENT: 'text-red-400' };
 
+/* ============ KPI Popup ============ */
 function KpiPopup({ open, label, kpiType, scope, onClose }: { open: boolean; label: string; kpiType: string; scope: string; onClose: () => void }) {
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -32,102 +38,235 @@ function KpiPopup({ open, label, kpiType, scope, onClose }: { open: boolean; lab
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground"><X size={18} /></button>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {loading ? (<div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-primary" size={24} /></div>
-          ) : tickets.length === 0 ? (<p className="text-center text-sm text-muted-foreground py-12">No tickets found</p>
-          ) : (<div className="divide-y divide-border">{tickets.map((ticket) => (
-            <Link key={ticket.id} href={`/dashboard/tickets/${ticket.id}`} onClick={onClose} className="flex items-center gap-3 px-6 py-3 hover:bg-accent/50 transition-all">
-              <div className={`w-2 h-2 rounded-full shrink-0 ${priorityDots[ticket.priority] || 'bg-zinc-400'}`} />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="font-mono text-xs text-muted-foreground">{ticket.ticketNumber}</span>
-                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[ticket.status] || ''}`}>{ticket.status.replace('_', ' ')}</span>
-                </div>
-                <p className="text-sm font-medium truncate">{ticket.title}</p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
-                <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: ticket.toDepartment?.color }} />{ticket.toDepartment?.name}</div>
-                {ticket.assignedTo && <span>{ticket.assignedTo.firstName} {ticket.assignedTo.lastName?.[0]}.</span>}
-              </div>
-            </Link>
-          ))}</div>)}
+          {loading ? <div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-primary" size={24} /></div>
+            : tickets.length === 0 ? <p className="text-center text-sm text-muted-foreground py-12">No tickets found</p>
+              : <div className="divide-y divide-border">{tickets.map(ticket => (
+                <Link key={ticket.id} href={`/dashboard/tickets/${ticket.id}`} onClick={onClose} className="flex items-center gap-3 px-6 py-3 hover:bg-accent/50 transition-all">
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${priorityDots[ticket.priority] || 'bg-zinc-400'}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="font-mono text-xs text-muted-foreground">{ticket.ticketNumber}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[ticket.status] || ''}`}>{ticket.status.replace('_', ' ')}</span>
+                    </div>
+                    <p className="text-sm font-medium truncate">{ticket.title}</p>
+                  </div>
+                </Link>
+              ))}</div>}
         </div>
-        <div className="px-6 py-3 border-t border-border shrink-0 text-right"><span className="text-xs text-muted-foreground">{tickets.length} ticket{tickets.length !== 1 ? 's' : ''}</span></div>
       </div>
     </div>
   );
 }
 
-function StatCard({ stat, onClick }: { stat: { label: string; value: number; icon: any; color: string; kpiType: string }; onClick: (l: string, t: string) => void }) {
+/* ============ Stat Card ============ */
+function StatCard({ label, value, icon: Icon, color, sub, onClick }: { label: string; value: number | string; icon: any; color: string; sub?: string; onClick?: () => void }) {
   return (
-    <button onClick={() => stat.value > 0 && onClick(stat.label, stat.kpiType)}
-      className={`bg-card border border-border rounded-2xl p-5 hover:border-primary/30 transition-all text-left w-full ${stat.value > 0 ? 'cursor-pointer hover:shadow-lg hover:shadow-primary/5' : 'cursor-default'}`}>
-      <div className="flex items-center justify-between mb-3">
-        <stat.icon className={stat.color} size={20} />
-        <span className={`text-2xl font-bold ${stat.value > 0 && stat.label === 'Overdue' ? 'text-red-400' : ''}`}>{stat.value}</span>
+    <button onClick={onClick} className={`bg-card border border-border rounded-2xl p-4 hover:border-primary/30 transition-all text-left w-full ${onClick ? 'cursor-pointer hover:shadow-lg hover:shadow-primary/5' : 'cursor-default'}`}>
+      <div className="flex items-center justify-between mb-2">
+        <Icon className={color} size={18} />
+        {sub && <span className="text-[10px] text-muted-foreground">{sub}</span>}
       </div>
-      <p className="text-sm text-muted-foreground">{stat.label}</p>
+      <p className="text-2xl font-bold tracking-tight">{value}</p>
+      <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
     </button>
   );
 }
 
-function StatsRow({ stats, onStatClick }: { stats: { label: string; value: number; icon: any; color: string; kpiType: string }[]; onStatClick: (l: string, t: string) => void }) {
-  return (<div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${Math.min(stats.length, 5)}, 1fr)` }}>{stats.map(s => <StatCard key={s.label} stat={s} onClick={onStatClick} />)}</div>);
+/* ============ Mini Bar Chart (CSS only) ============ */
+function MiniBarChart({ data, colorMap, labelMap }: { data: any[]; colorMap: Record<string, string>; labelMap?: Record<string, string> }) {
+  const total = data.reduce((s, d) => s + d._count, 0) || 1;
+  return (
+    <div className="space-y-2.5">
+      {data.map((d: any) => {
+        const key = d.status || d.priority;
+        const pct = (d._count / total) * 100;
+        return (
+          <div key={key} className="group">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-medium">{(labelMap?.[key] || key).replace('_', ' ')}</span>
+              <span className="text-xs text-muted-foreground font-mono">{d._count}</span>
+            </div>
+            <div className="h-2 bg-secondary rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-500 group-hover:opacity-80"
+                style={{ width: `${Math.max(3, pct)}%`, backgroundColor: colorMap[key] || '#6366f1' }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
-function ChartsRow({ byStatus, byPriority }: { byStatus: any[]; byPriority: any[] }) {
+/* ============ Sparkline (SVG) ============ */
+function Sparkline({ data, width = 200, height = 40, color = '#6366f1' }: { data: number[]; width?: number; height?: number; color?: string }) {
+  if (data.length < 2) return null;
+  const max = Math.max(...data, 1);
+  const min = Math.min(...data, 0);
+  const range = max - min || 1;
+  const points = data.map((v, i) => `${(i / (data.length - 1)) * width},${height - ((v - min) / range) * (height - 4) - 2}`).join(' ');
+  const areaPoints = `0,${height} ${points} ${width},${height}`;
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <div className="bg-card border border-border rounded-2xl p-5">
-        <h3 className="text-sm font-semibold mb-4">By Status</h3>
-        <div className="space-y-3">{byStatus?.map((s: any) => { const t = byStatus.reduce((a: number, x: any) => a + x._count, 0) || 1; return (
-          <Link key={s.status} href={`/dashboard/tickets?status=${s.status}`} className="flex items-center gap-3 hover:bg-accent/50 rounded-lg px-2 py-1 -mx-2 transition-all cursor-pointer group">
-            <span className={`px-2 py-0.5 rounded-md text-xs font-medium w-28 text-center ${statusColors[s.status] || ''}`}>{s.status.replace('_', ' ')}</span>
-            <div className="flex-1 h-2 bg-secondary rounded-full overflow-hidden"><div className="h-full bg-primary/60 rounded-full transition-all group-hover:bg-primary" style={{ width: `${Math.max(5, (s._count / t) * 100)}%` }} /></div>
-            <span className="text-sm font-mono text-muted-foreground w-8 text-right">{s._count}</span>
-          </Link>); })}</div>
-      </div>
-      <div className="bg-card border border-border rounded-2xl p-5">
-        <h3 className="text-sm font-semibold mb-4">By Priority</h3>
-        <div className="space-y-3">{byPriority?.map((p: any) => { const t = byPriority.reduce((a: number, x: any) => a + x._count, 0) || 1; return (
-          <Link key={p.priority} href={`/dashboard/tickets?priority=${p.priority}`} className="flex items-center gap-3 hover:bg-accent/50 rounded-lg px-2 py-1 -mx-2 transition-all cursor-pointer group">
-            <span className={`text-xs font-medium w-16 ${priorityColors[p.priority] || ''}`}>{p.priority}</span>
-            <div className="flex-1 h-2 bg-secondary rounded-full overflow-hidden"><div className="h-full bg-primary/60 rounded-full transition-all group-hover:bg-primary" style={{ width: `${Math.max(5, (p._count / t) * 100)}%` }} /></div>
-            <span className="text-sm font-mono text-muted-foreground w-8 text-right">{p._count}</span>
-          </Link>); })}</div>
+    <svg width={width} height={height} className="overflow-visible">
+      <defs><linearGradient id={`sg-${color.replace('#', '')}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.2" /><stop offset="100%" stopColor={color} stopOpacity="0" /></linearGradient></defs>
+      <polygon points={areaPoints} fill={`url(#sg-${color.replace('#', '')})`} />
+      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/* ============ Donut Chart (SVG) ============ */
+function DonutChart({ data, colorMap, size = 120 }: { data: { key: string; count: number }[]; colorMap: Record<string, string>; size?: number }) {
+  const total = data.reduce((s, d) => s + d.count, 0) || 1;
+  const r = (size - 12) / 2;
+  const cx = size / 2, cy = size / 2;
+  const circumference = 2 * Math.PI * r;
+  let offset = 0;
+
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size}>
+        {data.map(d => {
+          const pct = d.count / total;
+          const dash = pct * circumference;
+          const thisOffset = offset;
+          offset += dash;
+          return (
+            <circle key={d.key} cx={cx} cy={cy} r={r} fill="none"
+              stroke={colorMap[d.key] || '#6366f1'} strokeWidth="10"
+              strokeDasharray={`${dash} ${circumference - dash}`}
+              strokeDashoffset={-thisOffset} strokeLinecap="round"
+              transform={`rotate(-90 ${cx} ${cy})`}
+              className="transition-all duration-500" />
+          );
+        })}
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center flex-col">
+        <span className="text-lg font-bold">{total}</span>
+        <span className="text-[9px] text-muted-foreground">total</span>
       </div>
     </div>
   );
 }
 
-function TicketRow({ ticket, hasUnread }: { ticket: any; hasUnread: boolean }) {
+/* ============ Agent Workload ============ */
+function AgentWorkload({ agents }: { agents: any[] }) {
+  if (!agents?.length) return null;
+  const max = Math.max(...agents.map(a => a.count), 1);
   return (
-    <Link href={`/dashboard/tickets/${ticket.id}`} className={`flex items-center gap-4 p-4 px-5 hover:bg-accent/50 transition-all relative ${hasUnread ? 'bg-primary/[0.06] border-l-[3px] border-l-primary' : 'border-l-[3px] border-l-transparent'}`}>
-      {hasUnread ? (<div className="relative shrink-0"><div className="w-2.5 h-2.5 rounded-full bg-primary" /><div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-primary animate-ping opacity-40" /></div>) : (<div className={`w-2.5 h-2.5 rounded-full shrink-0 ${priorityDots[ticket.priority] || 'bg-zinc-400'}`} />)}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          {hasUnread && <span className="flex items-center gap-1 px-1.5 py-0.5 bg-primary/15 text-primary rounded text-[10px] font-semibold"><Bell size={10} className="fill-primary" /> NEW</span>}
-          <span className="font-mono text-xs text-muted-foreground">{ticket.ticketNumber}</span>
-          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[ticket.status] || ''}`}>{ticket.status.replace('_', ' ')}</span>
+    <div className="space-y-3">
+      {agents.slice(0, 8).map(a => (
+        <div key={a.id} className="flex items-center gap-3">
+          <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
+            {a.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-medium truncate">{a.name}</span>
+              <span className="text-xs font-mono text-muted-foreground">{a.count}</span>
+            </div>
+            <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+              <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${(a.count / max) * 100}%` }} />
+            </div>
+          </div>
         </div>
-        <p className={`text-sm truncate ${hasUnread ? 'font-semibold text-foreground' : 'font-medium'}`}>{ticket.title}</p>
-      </div>
-      <div className="text-right shrink-0"><div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: ticket.fromDepartment?.color }} /><span className="text-xs text-muted-foreground">{ticket.fromDepartment?.name}</span><span className="text-xs text-muted-foreground mx-1">→</span><span className="w-2 h-2 rounded-full" style={{ backgroundColor: ticket.toDepartment?.color }} /><span className="text-xs text-muted-foreground">{ticket.toDepartment?.name}</span></div></div>
-    </Link>
+      ))}
+    </div>
   );
 }
 
+/* ============ Trend Chart ============ */
+function TrendChart({ data }: { data: { date: string; created: number; closed: number }[] }) {
+  if (!data?.length) return null;
+  const maxVal = Math.max(...data.map(d => Math.max(d.created, d.closed)), 1);
+  const barW = Math.max(2, Math.floor(320 / data.length) - 1);
+  return (
+    <div>
+      <div className="flex items-center gap-4 mb-3">
+        <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground"><span className="w-2.5 h-2.5 rounded-sm bg-primary/70" /> Created</span>
+        <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500/70" /> Closed</span>
+      </div>
+      <div className="flex items-end gap-[1px] h-24">
+        {data.map((d, i) => (
+          <div key={i} className="flex-1 flex flex-col items-center gap-[1px] group relative" title={`${d.date}: ${d.created} created, ${d.closed} closed`}>
+            <div className="w-full bg-primary/60 rounded-t-sm transition-all group-hover:bg-primary" style={{ height: `${Math.max(1, (d.created / maxVal) * 80)}px` }} />
+            <div className="w-full bg-emerald-500/50 rounded-b-sm transition-all group-hover:bg-emerald-500" style={{ height: `${Math.max(1, (d.closed / maxVal) * 80)}px` }} />
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-between mt-2">
+        <span className="text-[9px] text-muted-foreground">{data[0]?.date?.slice(5)}</span>
+        <span className="text-[9px] text-muted-foreground">{data[data.length - 1]?.date?.slice(5)}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ============ Department Breakdown ============ */
+function DeptBreakdown({ depts }: { depts: any[] }) {
+  if (!depts?.length) return null;
+  const total = depts.reduce((s, d) => s + d.count, 0) || 1;
+  return (
+    <div className="space-y-2.5">
+      {depts.map(d => (
+        <div key={d.id}>
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: d.color || '#6366f1' }} />
+              <span className="text-xs font-medium">{d.name}</span>
+            </div>
+            <span className="text-xs font-mono text-muted-foreground">{d.count} <span className="text-[10px]">({Math.round((d.count / total) * 100)}%)</span></span>
+          </div>
+          <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+            <div className="h-full rounded-full transition-all" style={{ width: `${(d.count / total) * 100}%`, backgroundColor: d.color || '#6366f1' }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ============ Recent Tickets ============ */
 function RecentTickets({ tickets, unreadTicketIds }: { tickets: any[]; unreadTicketIds: string[] }) {
   return (
-    <div className="bg-card border border-border rounded-2xl">
-      <div className="flex items-center justify-between p-5 pb-0"><h3 className="text-sm font-semibold">Recently Updated</h3><Link href="/dashboard/tickets" className="text-xs text-primary hover:underline flex items-center gap-1">View all <ArrowUpRight size={12} /></Link></div>
+    <div className="bg-card border border-border rounded-2xl overflow-hidden">
+      <div className="flex items-center justify-between p-5 pb-3">
+        <h3 className="text-sm font-semibold">Recently Updated</h3>
+        <Link href="/dashboard/tickets" className="text-xs text-primary hover:underline flex items-center gap-1">View all <ArrowUpRight size={12} /></Link>
+      </div>
       <div className="divide-y divide-border">
-        {tickets?.map((t: any) => <TicketRow key={t.id} ticket={t} hasUnread={unreadTicketIds.includes(t.id)} />)}
+        {tickets?.map((t: any) => {
+          const hasUnread = unreadTicketIds.includes(t.id);
+          return (
+            <Link key={t.id} href={`/dashboard/tickets/${t.id}`}
+              className={`flex items-center gap-4 p-4 px-5 hover:bg-accent/50 transition-all relative ${hasUnread ? 'bg-primary/[0.06] border-l-[3px] border-l-primary' : 'border-l-[3px] border-l-transparent'}`}>
+              {hasUnread ? (
+                <div className="relative shrink-0"><div className="w-2.5 h-2.5 rounded-full bg-primary" /><div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-primary animate-ping opacity-40" /></div>
+              ) : (
+                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${priorityDots[t.priority] || 'bg-zinc-400'}`} />
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  {hasUnread && <span className="flex items-center gap-1 px-1.5 py-0.5 bg-primary/15 text-primary rounded text-[10px] font-semibold"><Bell size={10} className="fill-primary" /> NEW</span>}
+                  <span className="font-mono text-xs text-muted-foreground">{t.ticketNumber}</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[t.status] || ''}`}>{t.status.replace('_', ' ')}</span>
+                </div>
+                <p className={`text-sm truncate ${hasUnread ? 'font-semibold' : 'font-medium'}`}>{t.title}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: t.toDepartment?.color }} />
+                <span>{t.toDepartment?.name}</span>
+                {t.assignedTo && <span className="text-[10px] ml-1">→ {t.assignedTo.firstName}</span>}
+              </div>
+            </Link>
+          );
+        })}
         {(!tickets?.length) && <p className="p-8 text-center text-sm text-muted-foreground">No tickets yet</p>}
       </div>
     </div>
   );
 }
 
+/* ============ MAIN DASHBOARD ============ */
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const [data, setData] = useState<any>(null);
@@ -149,7 +288,10 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl font-bold">Welcome back, {user?.firstName}</h1><p className="text-muted-foreground text-sm mt-1">Here&apos;s what&apos;s happening in your workspace</p></div>
+      <div>
+        <h1 className="text-2xl font-bold">Welcome back, {user?.firstName}</h1>
+        <p className="text-muted-foreground text-sm mt-1">Here&apos;s what&apos;s happening in your workspace</p>
+      </div>
 
       {hasDeptView && (
         <div className="flex gap-1 bg-secondary rounded-xl p-1 w-fit">
@@ -158,26 +300,132 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* ====== PERSONAL VIEW ====== */}
       {view === 'personal' && (<>
-        <StatsRow onStatClick={openKpi} stats={[
-          { label: 'My Open Tickets', value: p.myOpen || 0, icon: Ticket, color: 'text-blue-400', kpiType: 'myOpen' },
-          { label: 'Assigned to Me', value: p.assignedToMe || 0, icon: UserCheck, color: 'text-amber-400', kpiType: 'assignedToMe' },
-          { label: 'Watching', value: p.watchingCount || 0, icon: Eye, color: 'text-purple-400', kpiType: 'watchingCount' },
-          { label: 'Overdue', value: p.overdueCount || 0, icon: AlertTriangle, color: 'text-red-400', kpiType: 'overdueCount' },
-        ]} />
-        <ChartsRow byStatus={p.byStatus || []} byPriority={p.byPriority || []} />
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+          <StatCard label="My Open" value={p.myOpen || 0} icon={Ticket} color="text-blue-400" onClick={() => p.myOpen > 0 && openKpi('My Open Tickets', 'myOpen')} />
+          <StatCard label="Assigned to Me" value={p.assignedToMe || 0} icon={UserCheck} color="text-amber-400" onClick={() => p.assignedToMe > 0 && openKpi('Assigned to Me', 'assignedToMe')} />
+          <StatCard label="Watching" value={p.watchingCount || 0} icon={Eye} color="text-purple-400" onClick={() => p.watchingCount > 0 && openKpi('Watching', 'watchingCount')} />
+          <StatCard label="Overdue" value={p.overdueCount || 0} icon={AlertTriangle} color="text-red-400" onClick={() => p.overdueCount > 0 && openKpi('Overdue', 'overdueCount')} />
+          <StatCard label="Closed This Week" value={p.closedThisWeek || 0} icon={CheckCircle2} color="text-emerald-400" />
+          <StatCard label="Avg Resolution" value={p.avgResolutionHours ? `${p.avgResolutionHours}h` : '—'} icon={Timer} color="text-cyan-400" />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="bg-card border border-border rounded-2xl p-5">
+            <h3 className="text-sm font-semibold mb-4">By Status</h3>
+            <div className="flex items-center gap-6">
+              <DonutChart
+                data={(p.byStatus || []).map((s: any) => ({ key: s.status, count: s._count }))}
+                colorMap={statusBarColors} size={110} />
+              <div className="flex-1"><MiniBarChart data={p.byStatus || []} colorMap={statusBarColors} /></div>
+            </div>
+          </div>
+          <div className="bg-card border border-border rounded-2xl p-5">
+            <h3 className="text-sm font-semibold mb-4">By Priority</h3>
+            <div className="flex items-center gap-6">
+              <DonutChart
+                data={(p.byPriority || []).map((pp: any) => ({ key: pp.priority, count: pp._count }))}
+                colorMap={priorityColors} size={110} />
+              <div className="flex-1"><MiniBarChart data={p.byPriority || []} colorMap={priorityColors} /></div>
+            </div>
+          </div>
+        </div>
+
         <RecentTickets tickets={p.recentlyUpdated || []} unreadTicketIds={unreadTicketIds} />
       </>)}
 
+      {/* ====== DEPARTMENT VIEW ====== */}
       {view === 'department' && hasDeptView && (<>
-        <StatsRow onStatClick={openKpi} stats={[
-          { label: 'Open Tickets', value: d.openTickets || 0, icon: Ticket, color: 'text-blue-400', kpiType: 'openTickets' },
-          { label: 'Waiting Reply', value: d.waitingReply || 0, icon: Clock, color: 'text-amber-400', kpiType: 'waitingReply' },
-          { label: 'Unassigned', value: d.unassigned || 0, icon: Inbox, color: 'text-orange-400', kpiType: 'unassigned' },
-          { label: 'Total Tickets', value: d.totalTickets || 0, icon: CheckCircle2, color: 'text-emerald-400', kpiType: 'totalTickets' },
-          { label: 'Overdue', value: d.overdueCount || 0, icon: AlertTriangle, color: 'text-red-400', kpiType: 'overdueCount' },
-        ]} />
-        <ChartsRow byStatus={d.byStatus || []} byPriority={d.byPriority || []} />
+        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-3">
+          <StatCard label="Open" value={d.openTickets || 0} icon={Ticket} color="text-blue-400" onClick={() => d.openTickets > 0 && openKpi('Open Tickets', 'openTickets')} />
+          <StatCard label="Waiting Reply" value={d.waitingReply || 0} icon={Clock} color="text-amber-400" onClick={() => d.waitingReply > 0 && openKpi('Waiting Reply', 'waitingReply')} />
+          <StatCard label="Unassigned" value={d.unassigned || 0} icon={Inbox} color="text-orange-400" onClick={() => d.unassigned > 0 && openKpi('Unassigned', 'unassigned')} />
+          <StatCard label="Overdue" value={d.overdueCount || 0} icon={AlertTriangle} color="text-red-400" onClick={() => d.overdueCount > 0 && openKpi('Overdue', 'overdueCount')} />
+          <StatCard label="Created (7d)" value={d.createdThisWeek || 0} icon={TrendingUp} color="text-indigo-400" />
+          <StatCard label="Closed (7d)" value={d.closedThisWeek || 0} icon={CheckCircle2} color="text-emerald-400" />
+          <StatCard label="Avg Resolution" value={d.avgResolutionHours ? `${d.avgResolutionHours}h` : '—'} icon={Timer} color="text-cyan-400" />
+          <StatCard label="SLA Compliance" value={`${d.slaComplianceRate ?? 100}%`} icon={ShieldCheck} color={d.slaComplianceRate >= 90 ? 'text-emerald-400' : d.slaComplianceRate >= 70 ? 'text-amber-400' : 'text-red-400'}
+            sub={`${d.slaMetCount || 0}✓ ${d.slaBreachedCount || 0}✗`} />
+        </div>
+
+        {/* Charts Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="bg-card border border-border rounded-2xl p-5">
+            <h3 className="text-sm font-semibold mb-4">By Status</h3>
+            <div className="flex items-center gap-6">
+              <DonutChart
+                data={(d.byStatus || []).map((s: any) => ({ key: s.status, count: s._count }))}
+                colorMap={statusBarColors} size={110} />
+              <div className="flex-1"><MiniBarChart data={d.byStatus || []} colorMap={statusBarColors} /></div>
+            </div>
+          </div>
+          <div className="bg-card border border-border rounded-2xl p-5">
+            <h3 className="text-sm font-semibold mb-4">By Priority</h3>
+            <div className="flex items-center gap-6">
+              <DonutChart
+                data={(d.byPriority || []).map((pp: any) => ({ key: pp.priority, count: pp._count }))}
+                colorMap={priorityColors} size={110} />
+              <div className="flex-1"><MiniBarChart data={d.byPriority || []} colorMap={priorityColors} /></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Trend + Agent + Dept Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="bg-card border border-border rounded-2xl p-5 lg:col-span-2">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold flex items-center gap-2"><Activity size={14} /> 30-Day Ticket Trend</h3>
+              <span className="text-[10px] text-muted-foreground">{d.totalTickets} total</span>
+            </div>
+            <TrendChart data={d.dailyTrend || []} />
+          </div>
+          <div className="bg-card border border-border rounded-2xl p-5">
+            <h3 className="text-sm font-semibold flex items-center gap-2 mb-4"><Users size={14} /> Agent Workload</h3>
+            <AgentWorkload agents={d.agentWorkload || []} />
+            {(!d.agentWorkload?.length) && <p className="text-xs text-muted-foreground text-center py-4">No assigned tickets</p>}
+          </div>
+        </div>
+
+        {/* Dept Breakdown (admin only) */}
+        {d.deptBreakdown?.length > 0 && (
+          <div className="bg-card border border-border rounded-2xl p-5">
+            <h3 className="text-sm font-semibold flex items-center gap-2 mb-4"><Building2 size={14} /> Open Tickets by Department</h3>
+            <DeptBreakdown depts={d.deptBreakdown} />
+          </div>
+        )}
+
+        {/* SLA Gauge */}
+        {(d.slaMetCount > 0 || d.slaBreachedCount > 0) && (
+          <div className="bg-card border border-border rounded-2xl p-5">
+            <h3 className="text-sm font-semibold flex items-center gap-2 mb-4"><ShieldCheck size={14} /> SLA Performance</h3>
+            <div className="flex items-center gap-8">
+              <div className="text-center">
+                <div className="relative w-24 h-24">
+                  <svg className="w-24 h-24 -rotate-90">
+                    <circle cx="48" cy="48" r="40" fill="none" stroke="currentColor" className="text-secondary" strokeWidth="8" />
+                    <circle cx="48" cy="48" r="40" fill="none" stroke={d.slaComplianceRate >= 90 ? '#10b981' : d.slaComplianceRate >= 70 ? '#f59e0b' : '#ef4444'}
+                      strokeWidth="8" strokeLinecap="round"
+                      strokeDasharray={`${(d.slaComplianceRate / 100) * 251.3} 251.3`} />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-lg font-bold">{d.slaComplianceRate}%</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1">Compliance</p>
+              </div>
+              <div className="flex-1 grid grid-cols-2 gap-4">
+                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3 text-center">
+                  <p className="text-xl font-bold text-emerald-400">{d.slaMetCount}</p>
+                  <p className="text-[10px] text-muted-foreground">Within SLA</p>
+                </div>
+                <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-3 text-center">
+                  <p className="text-xl font-bold text-red-400">{d.slaBreachedCount}</p>
+                  <p className="text-[10px] text-muted-foreground">SLA Breached</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <RecentTickets tickets={d.recentlyUpdated || []} unreadTicketIds={unreadTicketIds} />
       </>)}
 

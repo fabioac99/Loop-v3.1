@@ -171,6 +171,7 @@ class ApiClient {
 
   // Analytics
   getAnalytics(params?: any) { return this.get<any>(`/analytics?${new URLSearchParams(params || {})}`); }
+  getTeamPerformance() { return this.get<any>('/analytics/team-performance'); }
   exportAnalytics(params?: any) { return this.get<any>(`/analytics/export?${new URLSearchParams(params || {})}`); }
 
   // Search

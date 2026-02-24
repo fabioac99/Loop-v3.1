@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class NotificationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private mail: MailService,
+  ) { }
 
   async getForUser(userId: string, params: { unreadOnly?: boolean; page?: number; limit?: number }) {
     const { unreadOnly = false, page: rawPage, limit: rawLimit } = params;
@@ -58,7 +62,6 @@ export class NotificationsService {
   }
 
   async markTicketNotificationsRead(userId: string, ticketId: string) {
-    // Find all unread notifications for this ticket
     const notifications = await this.prisma.notification.findMany({
       where: { userId, isRead: false },
     });
@@ -75,7 +78,6 @@ export class NotificationsService {
   }
 
   async markTicketNotificationsUnread(userId: string, ticketId: string) {
-    // Find the most recent read notifications for this ticket
     const notifications = await this.prisma.notification.findMany({
       where: { userId, isRead: true },
       orderBy: { createdAt: 'desc' },
@@ -98,13 +100,24 @@ export class NotificationsService {
     });
   }
 
-  async notifyTicketCreated(ticket: any) {
-    const notifiedIds = new Set<string>();
-    notifiedIds.add(ticket.createdById); // Don't notify creator
+  private async isEventEnabled(eventType: string): Promise<{ enabled: boolean; channels: string[] }> {
+    const pref = await this.prisma.notificationPreference.findUnique({ where: { eventType } }).catch(() => null);
+    if (!pref) return { enabled: true, channels: ['in_app', 'email'] };
+    const channels = Array.isArray(pref.channels) ? pref.channels as string[] : ['in_app'];
+    return { enabled: pref.enabled, channels };
+  }
 
-    // Check if this event type is enabled
-    const pref = await this.prisma.notificationPreference.findUnique({ where: { eventType: 'TICKET_CREATED' } }).catch(() => null);
-    if (pref && !pref.enabled) return;
+  private async getUserEmail(userId: string): Promise<string | null> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    return user?.email || null;
+  }
+
+  async notifyTicketCreated(ticket: any) {
+    const { enabled, channels } = await this.isEventEnabled('TICKET_CREATED');
+    if (!enabled) return;
+
+    const notifiedIds = new Set<string>();
+    notifiedIds.add(ticket.createdById);
 
     // Notify assigned user
     if (ticket.assignedToId && !notifiedIds.has(ticket.assignedToId)) {
@@ -112,6 +125,10 @@ export class NotificationsService {
         'New ticket assigned to you',
         `Ticket ${ticket.ticketNumber}: ${ticket.title}`,
         { ticketId: ticket.id, ticketNumber: ticket.ticketNumber });
+      if (channels.includes('email')) {
+        const email = await this.getUserEmail(ticket.assignedToId);
+        if (email) this.mail.sendTicketAssigned(email, ticket).catch(() => { });
+      }
       notifiedIds.add(ticket.assignedToId);
     }
 
@@ -125,11 +142,14 @@ export class NotificationsService {
           'New ticket for your department',
           `Ticket ${ticket.ticketNumber}: ${ticket.title}`,
           { ticketId: ticket.id, ticketNumber: ticket.ticketNumber });
+        if (channels.includes('email')) {
+          this.mail.sendTicketCreated(head.email, ticket).catch(() => { });
+        }
         notifiedIds.add(head.id);
       }
     }
 
-    // Notify all watchers (CC users added during creation)
+    // Notify watchers
     const watchers = await this.prisma.ticketWatcher.findMany({ where: { ticketId: ticket.id } });
     for (const w of watchers) {
       if (!notifiedIds.has(w.userId)) {
@@ -137,39 +157,49 @@ export class NotificationsService {
           'You were added to a ticket',
           `Ticket ${ticket.ticketNumber}: ${ticket.title}`,
           { ticketId: ticket.id, ticketNumber: ticket.ticketNumber });
+        if (channels.includes('email')) {
+          const email = await this.getUserEmail(w.userId);
+          if (email) this.mail.sendTicketCreated(email, ticket).catch(() => { });
+        }
         notifiedIds.add(w.userId);
       }
     }
   }
 
-  private async isEventEnabled(eventType: string): Promise<boolean> {
-    const pref = await this.prisma.notificationPreference.findUnique({ where: { eventType } }).catch(() => null);
-    return pref ? pref.enabled : true; // default enabled if no row
-  }
-
   async notifyTicketAssigned(ticket: any) {
-    if (!await this.isEventEnabled('TICKET_ASSIGNED')) return;
+    const { enabled, channels } = await this.isEventEnabled('TICKET_ASSIGNED');
+    if (!enabled) return;
     if (ticket.assignedToId) {
       await this.create(ticket.assignedToId, 'TICKET_ASSIGNED',
         'Ticket assigned to you',
         `Ticket ${ticket.ticketNumber}: ${ticket.title}`,
         { ticketId: ticket.id, ticketNumber: ticket.ticketNumber });
+      if (channels.includes('email')) {
+        const email = await this.getUserEmail(ticket.assignedToId);
+        if (email) this.mail.sendTicketAssigned(email, ticket).catch(() => { });
+      }
     }
   }
 
   async notifyStatusChanged(ticket: any, oldStatus: string, newStatus: string) {
-    if (!await this.isEventEnabled('STATUS_CHANGED')) return;
+    const { enabled, channels } = await this.isEventEnabled('STATUS_CHANGED');
+    if (!enabled) return;
     const watchers = await this.prisma.ticketWatcher.findMany({ where: { ticketId: ticket.id } });
     for (const w of watchers) {
       await this.create(w.userId, 'STATUS_CHANGED',
         `Ticket ${ticket.ticketNumber} status changed`,
         `Status changed from ${oldStatus} to ${newStatus}`,
         { ticketId: ticket.id, ticketNumber: ticket.ticketNumber, oldStatus, newStatus });
+      if (channels.includes('email')) {
+        const email = await this.getUserEmail(w.userId);
+        if (email) this.mail.sendStatusChanged(email, ticket, oldStatus, newStatus).catch(() => { });
+      }
     }
   }
 
   async notifyNewMessage(ticket: any, message: any, sender: any) {
-    if (!await this.isEventEnabled('NEW_MESSAGE')) return;
+    const { enabled, channels } = await this.isEventEnabled('NEW_MESSAGE');
+    if (!enabled) return;
     const watchers = await this.prisma.ticketWatcher.findMany({ where: { ticketId: ticket.id } });
     for (const w of watchers) {
       if (w.userId !== sender.id) {
@@ -177,6 +207,10 @@ export class NotificationsService {
           `New reply on ${ticket.ticketNumber}`,
           `${sender.firstName} ${sender.lastName} replied`,
           { ticketId: ticket.id, ticketNumber: ticket.ticketNumber, messageId: message.id });
+        if (channels.includes('email')) {
+          const email = await this.getUserEmail(w.userId);
+          if (email) this.mail.sendNewMessage(email, ticket, `${sender.firstName} ${sender.lastName}`).catch(() => { });
+        }
       }
     }
     // Handle mentions
@@ -187,6 +221,9 @@ export class NotificationsService {
           `You were mentioned in ${ticket.ticketNumber}`,
           `${sender.firstName} ${sender.lastName} mentioned you`,
           { ticketId: ticket.id, ticketNumber: ticket.ticketNumber, messageId: message.id });
+        if (channels.includes('email')) {
+          this.mail.sendMentioned(u.email, ticket, `${sender.firstName} ${sender.lastName}`).catch(() => { });
+        }
       }
     }
   }

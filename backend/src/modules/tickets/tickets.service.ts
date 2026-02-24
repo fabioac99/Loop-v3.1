@@ -446,14 +446,15 @@ export class TicketsService {
     const isAdmin = user.globalRole === 'GLOBAL_ADMIN';
     const isDeptHead = user.departmentRole === 'DEPARTMENT_HEAD';
 
-    const openFilter = { status: { notIn: ['CLOSED', 'REJECTED'] as any } };
+    const openFilter = { status: { notIn: ['CLOSED', 'REJECTED', 'DRAFT'] as any } };
     const ticketIncludes = {
-      fromDepartment: { select: { name: true, color: true } },
-      toDepartment: { select: { name: true, color: true } },
+      fromDepartment: { select: { id: true, name: true, color: true } },
+      toDepartment: { select: { id: true, name: true, color: true } },
       createdBy: { select: { firstName: true, lastName: true } },
+      assignedTo: { select: { id: true, firstName: true, lastName: true, avatar: true } },
     };
 
-    // ---- Personal view (everyone gets this) ----
+    // ---- Personal view ----
     const personalFilter = {
       OR: [
         { createdById: userId },
@@ -462,7 +463,7 @@ export class TicketsService {
       ],
     };
 
-    const [myOpen, assignedToMe, watchingCount, personalRecent, personalByStatus, personalByPriority, personalOverdue] = await Promise.all([
+    const [myOpen, assignedToMe, watchingCount, personalRecent, personalByStatus, personalByPriority, personalOverdue, closedThisWeek, avgResolution] = await Promise.all([
       this.prisma.ticket.count({ where: { createdById: userId, ...openFilter } }),
       this.prisma.ticket.count({ where: { assignedToId: userId, ...openFilter } }),
       this.prisma.ticket.count({ where: { watchers: { some: { userId } }, ...openFilter } }),
@@ -472,37 +473,190 @@ export class TicketsService {
       this.prisma.ticket.groupBy({ by: ['status'], _count: true, where: personalFilter }),
       this.prisma.ticket.groupBy({ by: ['priority'], _count: true, where: personalFilter }),
       this.prisma.ticket.count({ where: { slaResolutionDeadline: { lt: new Date() }, ...openFilter, ...personalFilter } }),
+      // Closed this week
+      this.prisma.ticket.count({
+        where: { ...personalFilter, status: { in: ['CLOSED', 'REJECTED'] as any }, closedAt: { gte: new Date(Date.now() - 7 * 86400000) } },
+      }),
+      // Avg resolution time for closed tickets
+      this.prisma.ticket.findMany({
+        where: { ...personalFilter, closedAt: { not: null } },
+        select: { createdAt: true, closedAt: true },
+        orderBy: { closedAt: 'desc' },
+        take: 50,
+      }),
     ]);
+
+    // Calculate avg resolution hours
+    const avgResHours = avgResolution.length > 0
+      ? avgResolution.reduce((sum, t) => sum + (t.closedAt!.getTime() - t.createdAt.getTime()) / 3600000, 0) / avgResolution.length
+      : 0;
 
     const personal = {
       myOpen, assignedToMe, watchingCount, overdueCount: personalOverdue,
+      closedThisWeek, avgResolutionHours: Math.round(avgResHours * 10) / 10,
       recentlyUpdated: personalRecent, byStatus: personalByStatus, byPriority: personalByPriority,
     };
 
-    // ---- Department view (dept heads & admins only) ----
+    // ---- Department view ----
     let department: any = null;
     if ((isDeptHead || isAdmin) && deptId) {
       const deptFilter = isAdmin ? {} : {
         OR: [{ toDepartmentId: deptId }, { fromDepartmentId: deptId }],
       };
 
-      const [deptTotal, deptOpen, deptWaiting, deptOverdue, deptRecent, deptByStatus, deptByPriority, deptUnassigned] = await Promise.all([
+      const now = new Date();
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000);
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000);
+
+      const [
+        deptTotal, deptOpen, deptWaiting, deptOverdue, deptRecent,
+        deptByStatus, deptByPriority, deptUnassigned,
+        closedThisWeekDept, createdThisWeekDept,
+        deptAvgRes, slaBreached, slaMet,
+        byDepartment, byAgent,
+        ticketsLast30Days,
+      ] = await Promise.all([
         this.prisma.ticket.count({ where: deptFilter }),
         this.prisma.ticket.count({ where: { ...deptFilter, ...openFilter } }),
         this.prisma.ticket.count({ where: { ...deptFilter, status: 'WAITING_REPLY' as any } }),
-        this.prisma.ticket.count({ where: { ...deptFilter, slaResolutionDeadline: { lt: new Date() }, ...openFilter } }),
+        this.prisma.ticket.count({ where: { ...deptFilter, slaResolutionDeadline: { lt: now }, ...openFilter } }),
         this.prisma.ticket.findMany({
           where: deptFilter, orderBy: { updatedAt: 'desc' }, take: 10, include: ticketIncludes,
         }),
         this.prisma.ticket.groupBy({ by: ['status'], _count: true, where: deptFilter }),
         this.prisma.ticket.groupBy({ by: ['priority'], _count: true, where: deptFilter }),
         this.prisma.ticket.count({ where: { ...deptFilter, assignedToId: null, ...openFilter } }),
+        // Closed this week
+        this.prisma.ticket.count({
+          where: { ...deptFilter, status: { in: ['CLOSED', 'REJECTED'] as any }, closedAt: { gte: sevenDaysAgo } },
+        }),
+        // Created this week
+        this.prisma.ticket.count({
+          where: { ...deptFilter, createdAt: { gte: sevenDaysAgo } },
+        }),
+        // Avg resolution
+        this.prisma.ticket.findMany({
+          where: { ...deptFilter, closedAt: { not: null } },
+          select: { createdAt: true, closedAt: true, slaResolutionDeadline: true },
+          orderBy: { closedAt: 'desc' }, take: 100,
+        }),
+        // SLA breached (closed after deadline)
+        this.prisma.ticket.count({
+          where: {
+            ...deptFilter,
+            status: { in: ['CLOSED'] as any },
+            closedAt: { not: null },
+            slaResolutionDeadline: { not: null },
+            AND: [
+              { closedAt: { not: null } },
+            ],
+          },
+        }),
+        // We'll calculate SLA met/breached from deptAvgRes
+        Promise.resolve(0),
+        // By department (for admin)
+        isAdmin ? this.prisma.ticket.groupBy({
+          by: ['toDepartmentId'], _count: true, where: openFilter,
+        }) : Promise.resolve([]),
+        // By agent
+        this.prisma.ticket.groupBy({
+          by: ['assignedToId'], _count: true, where: { ...deptFilter, assignedToId: { not: null }, ...openFilter },
+        }),
+        // Tickets created per day last 30 days
+        this.prisma.ticket.findMany({
+          where: { ...deptFilter, createdAt: { gte: thirtyDaysAgo } },
+          select: { createdAt: true, status: true },
+        }),
       ]);
+
+      // Calculate avg resolution & SLA compliance
+      const deptAvgHours = deptAvgRes.length > 0
+        ? deptAvgRes.reduce((sum, t) => sum + (t.closedAt!.getTime() - t.createdAt.getTime()) / 3600000, 0) / deptAvgRes.length
+        : 0;
+
+      let slaMetCount = 0, slaBreachedCount = 0;
+      for (const t of deptAvgRes) {
+        if (t.slaResolutionDeadline && t.closedAt) {
+          if (t.closedAt <= t.slaResolutionDeadline) slaMetCount++;
+          else slaBreachedCount++;
+        }
+      }
+      const slaComplianceRate = (slaMetCount + slaBreachedCount) > 0
+        ? Math.round((slaMetCount / (slaMetCount + slaBreachedCount)) * 100)
+        : 100;
+
+      // Build daily trend (last 30 days)
+      const dailyTrend: { date: string; created: number; closed: number }[] = [];
+      for (let i = 29; i >= 0; i--) {
+        const day = new Date(now.getTime() - i * 86400000);
+        const dateStr = day.toISOString().split('T')[0];
+        dailyTrend.push({ date: dateStr, created: 0, closed: 0 });
+      }
+      for (const t of ticketsLast30Days) {
+        const dateStr = t.createdAt.toISOString().split('T')[0];
+        const entry = dailyTrend.find(d => d.date === dateStr);
+        if (entry) entry.created++;
+      }
+      // Get closed last 30 days for trend
+      const closedLast30 = await this.prisma.ticket.findMany({
+        where: { ...deptFilter, closedAt: { gte: thirtyDaysAgo } },
+        select: { closedAt: true },
+      });
+      for (const t of closedLast30) {
+        if (t.closedAt) {
+          const dateStr = t.closedAt.toISOString().split('T')[0];
+          const entry = dailyTrend.find(d => d.date === dateStr);
+          if (entry) entry.closed++;
+        }
+      }
+
+      // Get agent details for byAgent
+      const agentIds = byAgent.filter((a: any) => a.assignedToId).map((a: any) => a.assignedToId);
+      const agents = agentIds.length > 0
+        ? await this.prisma.user.findMany({
+          where: { id: { in: agentIds } },
+          select: { id: true, firstName: true, lastName: true, avatar: true },
+        })
+        : [];
+      const agentMap = Object.fromEntries(agents.map(a => [a.id, a]));
+      const agentWorkload = byAgent
+        .filter((a: any) => a.assignedToId && agentMap[a.assignedToId])
+        .map((a: any) => ({
+          id: a.assignedToId,
+          name: `${agentMap[a.assignedToId].firstName} ${agentMap[a.assignedToId].lastName}`,
+          avatar: agentMap[a.assignedToId].avatar,
+          count: a._count,
+        }))
+        .sort((a: any, b: any) => b.count - a.count);
+
+      // Department breakdown (admin only)
+      let deptBreakdown: any[] = [];
+      if (isAdmin && (byDepartment as any[]).length > 0) {
+        const deptIds = (byDepartment as any[]).map(d => d.toDepartmentId);
+        const depts = await this.prisma.department.findMany({
+          where: { id: { in: deptIds } },
+          select: { id: true, name: true, color: true },
+        });
+        const deptMap = Object.fromEntries(depts.map(d => [d.id, d]));
+        deptBreakdown = (byDepartment as any[])
+          .filter(d => deptMap[d.toDepartmentId])
+          .map(d => ({
+            id: d.toDepartmentId,
+            name: deptMap[d.toDepartmentId].name,
+            color: deptMap[d.toDepartmentId].color,
+            count: d._count,
+          }))
+          .sort((a, b) => b.count - a.count);
+      }
 
       department = {
         totalTickets: deptTotal, openTickets: deptOpen, waitingReply: deptWaiting,
         overdueCount: deptOverdue, unassigned: deptUnassigned,
+        closedThisWeek: closedThisWeekDept, createdThisWeek: createdThisWeekDept,
+        avgResolutionHours: Math.round(deptAvgHours * 10) / 10,
+        slaComplianceRate, slaMetCount, slaBreachedCount,
         recentlyUpdated: deptRecent, byStatus: deptByStatus, byPriority: deptByPriority,
+        dailyTrend, agentWorkload, deptBreakdown,
       };
     }
 

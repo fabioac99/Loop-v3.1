@@ -248,6 +248,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     ] : []),
     ...(hp('analytics.view') || useAuthStore.getState().isDeptHead() ? [
       { href: '/dashboard/analytics', icon: BarChart3, label: 'Analytics' },
+      { href: '/dashboard/team-performance', icon: Users, label: 'Team Performance' },
     ] : []),
     ...(hp('audit.view') ? [
       { href: '/dashboard/audit', icon: Shield, label: 'Audit Log' },

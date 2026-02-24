@@ -11,11 +11,16 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @RequirePermissions('analytics.view')
 export class AnalyticsController {
-  constructor(private service: AnalyticsService) {}
+  constructor(private service: AnalyticsService) { }
 
   @Get()
   getOverview(@CurrentUser() user: any, @Query() query: any) {
     return this.service.getOverview(user, query);
+  }
+
+  @Get('team-performance')
+  getTeamPerformance(@CurrentUser() user: any) {
+    return this.service.getTeamPerformance(user);
   }
 
   @Get('export')

@@ -3,14 +3,21 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class FormsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   // ---- Request Categories ----
   async getCategories(departmentId?: string) {
     const where: any = { isActive: true };
     if (departmentId) where.departmentId = departmentId;
     return this.prisma.requestCategory.findMany({
-      where, include: { subtypes: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } }, department: { select: { id: true, name: true, slug: true } } },
+      where, include: {
+        subtypes: {
+          where: { isActive: true },
+          orderBy: { sortOrder: 'asc' },
+          include: { formSchema: { select: { id: true, name: true, version: true } } },
+        },
+        department: { select: { id: true, name: true, slug: true } },
+      },
       orderBy: { sortOrder: 'asc' },
     });
   }
@@ -45,11 +52,33 @@ export class FormsService {
   }
 
   async createSubtype(data: any) {
-    return this.prisma.requestSubtype.create({ data });
+    return this.prisma.requestSubtype.create({
+      data: {
+        name: data.name,
+        slug: data.slug,
+        categoryId: data.categoryId,
+        description: data.description || null,
+        formSchemaId: data.formSchemaId || null,
+        defaultPriority: data.defaultPriority || 'NORMAL',
+        slaResponseHours: data.slaResponseHours ? parseInt(data.slaResponseHours) : null,
+        slaResolutionHours: data.slaResolutionHours ? parseInt(data.slaResolutionHours) : null,
+      },
+    });
   }
 
   async updateSubtype(id: string, data: any) {
-    return this.prisma.requestSubtype.update({ where: { id }, data });
+    return this.prisma.requestSubtype.update({
+      where: { id },
+      data: {
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.slug !== undefined && { slug: data.slug }),
+        ...(data.description !== undefined && { description: data.description || null }),
+        formSchemaId: data.formSchemaId || null,
+        ...(data.defaultPriority && { defaultPriority: data.defaultPriority }),
+        ...(data.slaResponseHours !== undefined && { slaResponseHours: data.slaResponseHours ? parseInt(data.slaResponseHours) : null }),
+        ...(data.slaResolutionHours !== undefined && { slaResolutionHours: data.slaResolutionHours ? parseInt(data.slaResolutionHours) : null }),
+      },
+    });
   }
 
   async deleteSubtype(id: string) {

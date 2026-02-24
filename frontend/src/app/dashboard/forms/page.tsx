@@ -684,7 +684,7 @@ function FormsPageContent() {
                 {cat.subtypes?.length > 0 && (
                   <div className="divide-y divide-border">
                     {cat.subtypes.map((st: any) => {
-                      const linkedSchema = schemas.find((s: any) => s.id === st.formSchemaId);
+                      const linkedSchema = schemas.find((s: any) => s.id === st.formSchemaId) || st.formSchema;
                       return (
                         <div key={st.id} className="flex items-center gap-2 px-4 py-2 text-xs hover:bg-accent/20 group">
                           <ChevronRight size={10} className="text-muted-foreground shrink-0" />
@@ -705,6 +705,10 @@ function FormsPageContent() {
                               defaultPriority: st.defaultPriority || 'NORMAL',
                             }
                           })} className="p-1 rounded hover:bg-accent text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"><Edit2 size={11} /></button>
+                          <button onClick={async () => {
+                            if (!confirm(`Delete request type "${st.name}"?`)) return;
+                            try { await api.deleteSubtype(st.id); fetchData(); } catch (e: any) { alert(e.message); }
+                          }} className="p-1 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={11} /></button>
                         </div>
                       );
                     })}
@@ -767,7 +771,7 @@ function FormsPageContent() {
           <div className="h-14 border-b border-border flex items-center px-6 gap-4 shrink-0 bg-card">
             <button onClick={() => setShowSchemaEditor(false)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground"><X size={18} /></button>
             <div className="flex-1">
-              <input className="text-lg font-bold bg-transparent border-0 outline-none w-full" value={schemaForm.name} onChange={e => setSchemaForm({...schemaForm, name: e.target.value})} placeholder="Schema name" />
+              <input className="text-lg font-bold bg-transparent border-0 outline-none w-full" value={schemaForm.name} onChange={e => setSchemaForm({ ...schemaForm, name: e.target.value })} placeholder="Schema name" />
             </div>
             <div className="flex items-center gap-2">
               <button onClick={() => setShowPreview(!showPreview)} className={`flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-medium border transition-colors ${showPreview ? 'bg-primary/10 text-primary border-primary/30' : 'border-border hover:bg-accent'}`}>
@@ -779,7 +783,7 @@ function FormsPageContent() {
 
           {/* Description */}
           <div className="px-6 py-3 border-b border-border bg-card/50">
-            <input className="w-full text-sm bg-transparent border-0 outline-none text-muted-foreground" value={schemaForm.description} onChange={e => setSchemaForm({...schemaForm, description: e.target.value})} placeholder="Schema description (optional)" />
+            <input className="w-full text-sm bg-transparent border-0 outline-none text-muted-foreground" value={schemaForm.description} onChange={e => setSchemaForm({ ...schemaForm, description: e.target.value })} placeholder="Schema description (optional)" />
           </div>
 
           {/* Content */}

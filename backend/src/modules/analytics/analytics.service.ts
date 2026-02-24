@@ -3,7 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class AnalyticsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async getOverview(user: any, params: { departmentId?: string; dateFrom?: string; dateTo?: string }) {
     const where: any = {};
@@ -56,6 +56,112 @@ export class AnalyticsService {
       monthlyTickets: monthlyRaw,
       activeUsers,
       overdueRate: total > 0 ? ((overdue / total) * 100).toFixed(1) : '0',
+    };
+  }
+
+  async getTeamPerformance(user: any) {
+    const isAdmin = user.globalRole === 'GLOBAL_ADMIN';
+    const deptId = user.departmentId;
+
+    // Get all agents in department (or all if admin)
+    const agentWhere: any = { isActive: true };
+    if (!isAdmin) agentWhere.departmentId = deptId;
+
+    const agents = await this.prisma.user.findMany({
+      where: agentWhere,
+      select: { id: true, firstName: true, lastName: true, avatar: true, departmentId: true },
+    });
+
+    const deptFilter: any = isAdmin ? {} : {
+      OR: [{ toDepartmentId: deptId }, { fromDepartmentId: deptId }],
+    };
+    const openFilter = { status: { notIn: ['CLOSED', 'REJECTED', 'DRAFT'] as any } };
+    const now = new Date();
+
+    // Per-agent metrics
+    const agentMetrics = await Promise.all(agents.map(async (agent) => {
+      const [
+        assignedOpen, assignedTotal, assignedClosed, createdOpen,
+        closedTickets, overdueActive,
+      ] = await Promise.all([
+        // Open tickets assigned
+        this.prisma.ticket.count({ where: { assignedToId: agent.id, ...deptFilter, ...openFilter } }),
+        // Total assigned (all time)
+        this.prisma.ticket.count({ where: { assignedToId: agent.id, ...deptFilter } }),
+        // Assigned & closed
+        this.prisma.ticket.count({ where: { assignedToId: agent.id, ...deptFilter, status: { in: ['CLOSED'] as any } } }),
+        // Created & still open
+        this.prisma.ticket.count({ where: { createdById: agent.id, ...deptFilter, ...openFilter } }),
+        // Closed with resolution data
+        this.prisma.ticket.findMany({
+          where: { assignedToId: agent.id, ...deptFilter, closedAt: { not: null } },
+          select: { createdAt: true, closedAt: true, slaResolutionDeadline: true },
+          orderBy: { closedAt: 'desc' }, take: 100,
+        }),
+        // Overdue active tickets
+        this.prisma.ticket.count({
+          where: { assignedToId: agent.id, ...deptFilter, ...openFilter, slaResolutionDeadline: { lt: now } },
+        }),
+      ]);
+
+      // Calculate SLA compliance & avg resolution
+      let slaMet = 0, slaBreached = 0, totalResHours = 0;
+      for (const t of closedTickets) {
+        if (t.closedAt) {
+          totalResHours += (t.closedAt.getTime() - t.createdAt.getTime()) / 3600000;
+          if (t.slaResolutionDeadline) {
+            if (t.closedAt <= t.slaResolutionDeadline) slaMet++;
+            else slaBreached++;
+          }
+        }
+      }
+      const avgResolutionHours = closedTickets.length > 0 ? Math.round((totalResHours / closedTickets.length) * 10) / 10 : 0;
+      const slaRate = (slaMet + slaBreached) > 0 ? Math.round((slaMet / (slaMet + slaBreached)) * 100) / 100 : 1;
+      const resolutionRate = assignedTotal > 0 ? Math.round((assignedClosed / assignedTotal) * 100) / 100 : 0;
+
+      // Workload score: weighted combination of open + created
+      const workloadScore = assignedOpen * 2 + createdOpen * 0.5;
+
+      // Efficiency: inverse of avg resolution (lower is better), normalized
+      const efficiency = avgResolutionHours > 0 ? Math.min(1, 24 / avgResolutionHours) : 0;
+
+      return {
+        id: agent.id,
+        name: `${agent.firstName} ${agent.lastName}`,
+        avatar: agent.avatar,
+        assignedOpen,
+        createdOpen,
+        assignedClosed,
+        assignedTotal,
+        overdueActive,
+        slaRate,
+        avgResolutionHours,
+        resolutionRate,
+        workloadScore: Math.round(workloadScore * 10) / 10,
+        efficiency: Math.round(efficiency * 100) / 100,
+      };
+    }));
+
+    // Operational status of open assigned tickets
+    const openAssigned = await this.prisma.ticket.findMany({
+      where: { ...deptFilter, ...openFilter, assignedToId: { not: null } },
+      select: { status: true, slaResolutionDeadline: true },
+    });
+
+    let okCount = 0, atRiskCount = 0, overdueCount = 0, pausedCount = 0;
+    for (const t of openAssigned) {
+      if (t.status === 'WAITING_REPLY') { pausedCount++; continue; }
+      if (!t.slaResolutionDeadline) { okCount++; continue; }
+      const deadline = new Date(t.slaResolutionDeadline);
+      const hoursLeft = (deadline.getTime() - now.getTime()) / 3600000;
+      if (hoursLeft < 0) overdueCount++;
+      else if (hoursLeft < 8) atRiskCount++;
+      else okCount++;
+    }
+
+    return {
+      agents: agentMetrics.filter(a => a.assignedTotal > 0 || a.createdOpen > 0),
+      operationalStatus: { ok: okCount, atRisk: atRiskCount, overdue: overdueCount, paused: pausedCount },
     };
   }
 

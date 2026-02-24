@@ -17,6 +17,7 @@ import { SearchModule } from './modules/search/search.module';
 import { GatewayModule } from './modules/gateway/gateway.module';
 import { EntitiesModule } from './modules/entities/entities.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { MailModule } from './modules/mail/mail.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { AdminModule } from './modules/admin/admin.module';
     GatewayModule,
     EntitiesModule,
     AdminModule,
+    MailModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
