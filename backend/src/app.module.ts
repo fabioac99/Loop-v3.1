@@ -18,6 +18,7 @@ import { GatewayModule } from './modules/gateway/gateway.module';
 import { EntitiesModule } from './modules/entities/entities.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { MailModule } from './modules/mail/mail.module';
+import { CannedResponsesModule } from './modules/canned-responses/canned-responses.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { MailModule } from './modules/mail/mail.module';
     EntitiesModule,
     AdminModule,
     MailModule,
+    CannedResponsesModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

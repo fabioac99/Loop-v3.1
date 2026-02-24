@@ -9,7 +9,7 @@ import { useNotificationStore } from '@/stores/notifications';
 import {
   ArrowLeft, Send, Paperclip, Eye, EyeOff, Copy, Clock, AlertTriangle,
   Loader2, Image as ImageIcon, Bold, Italic, List, X, Bell, BellOff, UserPlus,
-  Forward, Trash2, Share2, Archive, ArchiveRestore,
+  Forward, Trash2, Share2, Archive, ArchiveRestore, MessageSquare, Timer, History, ChevronDown, Plus,
 } from 'lucide-react';
 import RichTextEditor from '@/components/common/RichTextEditor';
 import type { UploadedFile } from '@/components/common/RichTextEditor';
@@ -254,6 +254,47 @@ export default function TicketDetailPage() {
   const loadForwardUsers = async () => {
     const res = await api.getUsers({ limit: '200' });
     setForwardUsers((res.data || res).filter((u: any) => u.id !== user?.id));
+  };
+
+  // Canned responses
+  const [showCanned, setShowCanned] = useState(false);
+  const [cannedResponses, setCannedResponses] = useState<any[]>([]);
+  const loadCanned = async () => {
+    const res = await api.getCannedResponses();
+    setCannedResponses(res);
+  };
+  const insertCanned = (cr: any) => {
+    setMessage(prev => prev + (prev ? '\n' : '') + cr.content);
+    setShowCanned(false);
+  };
+
+  // Time tracking
+  const [showTimeTracker, setShowTimeTracker] = useState(false);
+  const [timeEntries, setTimeEntries] = useState<any[]>([]);
+  const [timeForm, setTimeForm] = useState({ minutes: '', description: '' });
+  const loadTimeEntries = async () => {
+    if (!ticket?.id) return;
+    const res = await api.getTimeEntries(ticket.id);
+    setTimeEntries(res);
+  };
+  const handleAddTime = async () => {
+    if (!timeForm.minutes) return;
+    await api.addTimeEntry(ticket.id, { minutes: parseInt(timeForm.minutes), description: timeForm.description || undefined });
+    setTimeForm({ minutes: '', description: '' });
+    loadTimeEntries();
+  };
+  const totalMinutes = timeEntries.reduce((s: number, e: any) => s + e.minutes, 0);
+
+  // Timeline
+  const [showTimeline, setShowTimeline] = useState(false);
+  const [timeline, setTimeline] = useState<any[]>([]);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const loadTimeline = async () => {
+    if (!ticket?.id) return;
+    setTimelineLoading(true);
+    const res = await api.getTimeline(ticket.id);
+    setTimeline(res);
+    setTimelineLoading(false);
   };
 
   const handleForward = async () => {
@@ -562,9 +603,30 @@ export default function TicketDetailPage() {
                   onFilesChange={setMessageFiles}
                 />
                 <div className="flex items-center justify-between mt-3">
-                  <p className="text-xs text-muted-foreground">
-                    {messageFiles.length > 0 && `${messageFiles.length} file(s) attached`}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      {messageFiles.length > 0 && `${messageFiles.length} file(s) attached`}
+                    </p>
+                    {/* Canned Responses */}
+                    <div className="relative">
+                      <button type="button" onClick={() => { setShowCanned(!showCanned); if (!showCanned) loadCanned(); }}
+                        className="text-[11px] px-2 py-1 rounded border border-border hover:bg-accent text-muted-foreground flex items-center gap-1">
+                        <MessageSquare size={11} /> Canned <ChevronDown size={10} />
+                      </button>
+                      {showCanned && cannedResponses.length > 0 && (
+                        <div className="absolute bottom-full left-0 mb-1 bg-card border border-border rounded-xl shadow-xl z-20 w-72 max-h-60 overflow-y-auto">
+                          {cannedResponses.map((cr: any) => (
+                            <button key={cr.id} type="button" onClick={() => insertCanned(cr)}
+                              className="w-full text-left px-3 py-2 hover:bg-accent/50 border-b border-border last:border-0">
+                              <p className="text-xs font-medium">{cr.title}</p>
+                              <p className="text-[10px] text-muted-foreground truncate">{cr.content.slice(0, 80)}</p>
+                              {cr.shortcut && <span className="text-[9px] font-mono text-primary">{cr.shortcut}</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   <button type="submit" disabled={sending || (!message.trim() && messageFiles.length === 0)}
                     className="flex items-center gap-2 h-9 px-5 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-all">
                     {sending ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
@@ -596,6 +658,98 @@ export default function TicketDetailPage() {
                 <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add internal note..." className="flex-1 h-10 px-3 rounded-xl bg-secondary border border-border text-sm" />
                 <button type="submit" disabled={!note.trim()} className="h-10 px-4 bg-amber-500 text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-40">Add</button>
               </form>
+            </div>
+          )}
+
+          {/* Time Tracking + Timeline toggle buttons */}
+          <div className="flex gap-2">
+            <button onClick={() => { setShowTimeTracker(!showTimeTracker); if (!showTimeTracker) loadTimeEntries(); }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${showTimeTracker ? 'border-primary text-primary bg-primary/5' : 'border-border text-muted-foreground hover:text-foreground'}`}>
+              <Timer size={13} /> Time Tracking {totalMinutes > 0 && `(${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m)`}
+            </button>
+            <button onClick={() => { setShowTimeline(!showTimeline); if (!showTimeline) loadTimeline(); }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${showTimeline ? 'border-primary text-primary bg-primary/5' : 'border-border text-muted-foreground hover:text-foreground'}`}>
+              <History size={13} /> Timeline
+            </button>
+          </div>
+
+          {/* Time Tracking Panel */}
+          {showTimeTracker && (
+            <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-2xl overflow-hidden">
+              <div className="p-4 border-b border-cyan-500/20">
+                <h3 className="text-sm font-semibold text-cyan-400 flex items-center gap-2"><Timer size={14} /> Time Tracking</h3>
+              </div>
+              <div className="p-4 space-y-3">
+                <div className="flex gap-2">
+                  <input type="number" placeholder="Minutes" value={timeForm.minutes} onChange={e => setTimeForm({ ...timeForm, minutes: e.target.value })}
+                    className="w-24 h-8 px-2 rounded-lg bg-secondary border border-border text-sm" min="1" />
+                  <input placeholder="Description (optional)" value={timeForm.description} onChange={e => setTimeForm({ ...timeForm, description: e.target.value })}
+                    className="flex-1 h-8 px-2 rounded-lg bg-secondary border border-border text-sm" />
+                  <button onClick={handleAddTime} disabled={!timeForm.minutes} className="h-8 px-3 bg-cyan-500 text-white rounded-lg text-xs font-medium hover:opacity-90 disabled:opacity-40">
+                    <Plus size={13} />
+                  </button>
+                </div>
+                {timeEntries.length > 0 && (
+                  <div className="divide-y divide-cyan-500/10 max-h-40 overflow-y-auto">
+                    {timeEntries.map((e: any) => (
+                      <div key={e.id} className="flex items-center gap-2 py-1.5 text-xs">
+                        <span className="font-medium">{e.user?.firstName} {e.user?.lastName?.[0]}.</span>
+                        <span className="font-mono text-cyan-400">{Math.floor(e.minutes / 60)}h {e.minutes % 60}m</span>
+                        {e.description && <span className="text-muted-foreground truncate flex-1">— {e.description}</span>}
+                        <span className="text-[10px] text-muted-foreground">{new Date(e.date).toLocaleDateString()}</span>
+                        {(e.user?.id === user?.id || user?.globalRole === 'GLOBAL_ADMIN') && (
+                          <button onClick={async () => { await api.deleteTimeEntry(e.id); loadTimeEntries(); }} className="text-red-400 hover:text-red-300"><Trash2 size={10} /></button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {totalMinutes > 0 && (
+                  <div className="text-xs font-semibold text-cyan-400 pt-1 border-t border-cyan-500/20">
+                    Total: {Math.floor(totalMinutes / 60)}h {totalMinutes % 60}m
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Timeline Panel */}
+          {showTimeline && (
+            <div className="bg-indigo-500/5 border border-indigo-500/20 rounded-2xl overflow-hidden">
+              <div className="p-4 border-b border-indigo-500/20">
+                <h3 className="text-sm font-semibold text-indigo-400 flex items-center gap-2"><History size={14} /> Full Timeline</h3>
+              </div>
+              <div className="p-4 max-h-[500px] overflow-y-auto">
+                {timelineLoading ? <div className="flex justify-center py-6"><Loader2 className="animate-spin text-primary" size={20} /></div> : (
+                  <div className="relative pl-6 space-y-0">
+                    {/* Vertical line */}
+                    <div className="absolute left-[9px] top-2 bottom-2 w-px bg-border" />
+                    {timeline.map((event: any, i: number) => {
+                      const colors: Record<string, string> = {
+                        message: 'bg-blue-500', note: 'bg-amber-500', change: 'bg-zinc-400',
+                        forward: 'bg-purple-500', time: 'bg-cyan-500',
+                      };
+                      return (
+                        <div key={i} className="relative pb-4">
+                          <div className={`absolute left-[-18px] top-1.5 w-2.5 h-2.5 rounded-full ${colors[event.type] || 'bg-zinc-400'} ring-2 ring-card`} />
+                          <div className="text-xs">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="font-medium">{event.user?.firstName || event.fromUser?.firstName || 'System'} {event.user?.lastName?.[0] || event.fromUser?.lastName?.[0] || ''}</span>
+                              <span className="text-[10px] text-muted-foreground">{new Date(event.timestamp).toLocaleString()}</span>
+                            </div>
+                            {event.type === 'message' && <p className="text-muted-foreground">Replied: <span className="text-foreground" dangerouslySetInnerHTML={{ __html: event.content?.slice(0, 120) + (event.content?.length > 120 ? '...' : '') }} /></p>}
+                            {event.type === 'note' && <p className="text-amber-400/80">Internal note: {event.content?.slice(0, 100)}</p>}
+                            {event.type === 'change' && <p className="text-muted-foreground"><span className="font-mono text-[10px]">{event.field}</span>: <span className="line-through opacity-50">{event.oldValue || '(none)'}</span> → <span className="text-foreground font-medium">{event.newValue}</span></p>}
+                            {event.type === 'forward' && <p className="text-purple-400">Forwarded to {event.toUser?.firstName} {event.toUser?.lastName}</p>}
+                            {event.type === 'time' && <p className="text-cyan-400">Logged {Math.floor(event.minutes / 60)}h {event.minutes % 60}m{event.description ? `: ${event.description}` : ''}</p>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {timeline.length === 0 && <p className="text-muted-foreground text-xs text-center py-4">No events</p>}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

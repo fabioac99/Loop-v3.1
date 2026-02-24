@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/notifications';
-import { Plus, Loader2, ChevronLeft, ChevronRight, Clock, AlertTriangle, Bell, X, User, Building2, PenSquare, Archive } from 'lucide-react';
+import { Plus, Loader2, ChevronLeft, ChevronRight, Clock, AlertTriangle, Bell, X, User, Building2, PenSquare, Archive, CheckSquare, Square } from 'lucide-react';
 import RichTextEditor from '@/components/common/RichTextEditor';
 import FileAttachment, { type UploadedFile } from '@/components/common/FileAttachment';
 import EntityTypeSelector from '@/components/common/EntityTypeSelector';
@@ -470,6 +470,26 @@ export default function TicketsPage() {
   const isDeptHead = user?.departmentRole === 'DEPARTMENT_HEAD' || user?.globalRole === 'GLOBAL_ADMIN';
   const [view, setView] = useState<'personal' | 'department' | 'drafts' | 'archived'>('personal');
   const [showToggle, setShowToggle] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState('');
+
+  const toggleSelect = (id: string, e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  };
+  const toggleSelectAll = () => {
+    if (selected.size === tickets.length) setSelected(new Set());
+    else setSelected(new Set(tickets.map(t => t.id)));
+  };
+  const handleBulkAction = async (action: string, value?: string) => {
+    if (selected.size === 0) return;
+    if (!confirm(`Apply "${action}" to ${selected.size} ticket(s)?`)) return;
+    try {
+      await api.bulkUpdateTickets({ ticketIds: Array.from(selected), action, value });
+      setSelected(new Set());
+      fetchTickets();
+    } catch (e: any) { alert(e.message); }
+  };
 
   // Update toggle visibility when user loads
   useEffect(() => {
@@ -529,31 +549,35 @@ export default function TicketsPage() {
       <div className="flex gap-1 bg-secondary rounded-xl p-1 w-fit">
         <button
           onClick={() => switchView('personal')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'personal' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
-            }`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            view === 'personal' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+          }`}
         >
           <User size={15} /> My Tickets
         </button>
         {showToggle && (
           <button
             onClick={() => switchView('department')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'department' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
-              }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              view === 'department' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
           >
             <Building2 size={15} /> Department
           </button>
         )}
         <button
           onClick={() => switchView('drafts')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'drafts' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
-            }`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            view === 'drafts' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+          }`}
         >
           <PenSquare size={15} /> Drafts
         </button>
         <button
           onClick={() => switchView('archived')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'archived' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
-            }`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            view === 'archived' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+          }`}
         >
           <Archive size={15} /> Archived
         </button>
@@ -580,15 +604,36 @@ export default function TicketsPage() {
         ) : tickets.length === 0 ? (
           <p className="p-8 text-center text-muted-foreground text-sm">No tickets found</p>
         ) : (
+          <>
+          {/* Bulk actions bar */}
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-secondary/30">
+            <button onClick={toggleSelectAll} className="p-0.5 rounded hover:bg-accent text-muted-foreground shrink-0">
+              {selected.size === tickets.length && tickets.length > 0 ? <CheckSquare size={16} className="text-primary" /> : <Square size={16} />}
+            </button>
+            {selected.size > 0 && (
+              <>
+                <span className="text-xs font-medium text-primary">{selected.size} selected</span>
+                <div className="h-4 w-px bg-border" />
+                <button onClick={() => handleBulkAction('close')} className="text-[11px] px-2 py-1 rounded bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20">Close</button>
+                <button onClick={() => handleBulkAction('archive')} className="text-[11px] px-2 py-1 rounded bg-zinc-500/10 text-zinc-400 hover:bg-zinc-500/20">Archive</button>
+                <button onClick={() => handleBulkAction('status', 'IN_PROGRESS')} className="text-[11px] px-2 py-1 rounded bg-amber-500/10 text-amber-400 hover:bg-amber-500/20">In Progress</button>
+                {isDeptHead && <button onClick={() => handleBulkAction('delete')} className="text-[11px] px-2 py-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20">Delete</button>}
+                <button onClick={() => setSelected(new Set())} className="text-[11px] px-2 py-1 rounded hover:bg-accent text-muted-foreground ml-auto">Clear</button>
+              </>
+            )}
+          </div>
           <div className="divide-y divide-border">
             {tickets.map((ticket) => {
               const sla = getSlaStatus(ticket);
               const hasUnread = unreadTicketIds.includes(ticket.id);
+              const isSelected = selected.has(ticket.id);
               return (
-                <Link key={ticket.id} href={`/dashboard/tickets/${ticket.id}`}
-                  className={`flex items-center gap-3 p-4 hover:bg-accent/50 transition-all group relative
-                    ${hasUnread ? 'bg-primary/[0.06] border-l-[3px] border-l-primary' : 'border-l-[3px] border-l-transparent'}`}
-                >
+                <div key={ticket.id} className={`flex items-center gap-3 p-4 hover:bg-accent/50 transition-all group relative
+                  ${isSelected ? 'bg-primary/[0.08]' : hasUnread ? 'bg-primary/[0.06] border-l-[3px] border-l-primary' : 'border-l-[3px] border-l-transparent'}`}>
+                  <button onClick={(e) => toggleSelect(ticket.id, e)} className="p-0.5 rounded hover:bg-accent shrink-0">
+                    {isSelected ? <CheckSquare size={15} className="text-primary" /> : <Square size={15} className="text-muted-foreground" />}
+                  </button>
+                  <Link href={`/dashboard/tickets/${ticket.id}`} className="flex items-center gap-3 flex-1 min-w-0">
                   {/* Unread pulsing dot */}
                   {hasUnread ? (
                     <div className="relative shrink-0">
@@ -630,9 +675,11 @@ export default function TicketsPage() {
                     <span className="text-[10px]">{new Date(ticket.createdAt).toLocaleDateString()}</span>
                   </div>
                 </Link>
+                </div>
               );
             })}
           </div>
+          </>
         )}
         {total > 25 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-border">

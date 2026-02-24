@@ -13,7 +13,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 @Controller('tickets')
 @UseGuards(JwtAuthGuard)
 export class TicketsController {
-  constructor(private service: TicketsService) { }
+  constructor(private service: TicketsService) {}
 
   @Get()
   findAll(@CurrentUser() user: any, @Query() query: any) {
@@ -93,5 +93,33 @@ export class TicketsController {
   @Post(':id/unarchive')
   unarchiveTicket(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.unarchiveTicket(id, user);
+  }
+
+  // Time entries
+  @Get(':id/time-entries')
+  getTimeEntries(@Param('id') id: string) {
+    return this.service.getTimeEntries(id);
+  }
+
+  @Post(':id/time-entries')
+  addTimeEntry(@Param('id') id: string, @CurrentUser() user: any, @Body() body: { minutes: number; description?: string }) {
+    return this.service.addTimeEntry(id, user, body);
+  }
+
+  @Delete('time-entries/:entryId')
+  deleteTimeEntry(@Param('entryId') id: string, @CurrentUser() user: any) {
+    return this.service.deleteTimeEntry(id, user);
+  }
+
+  // Timeline
+  @Get(':id/timeline')
+  getTimeline(@Param('id') id: string) {
+    return this.service.getTimeline(id);
+  }
+
+  // Bulk actions
+  @Post('bulk/update')
+  bulkUpdate(@CurrentUser() user: any, @Body() body: { ticketIds: string[]; action: string; value?: string }) {
+    return this.service.bulkUpdate(user, body);
   }
 }

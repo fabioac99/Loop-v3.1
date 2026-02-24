@@ -724,4 +724,190 @@ export class TicketsService {
       data: { isArchived: false, archivedAt: null },
     });
   }
+
+  // ==================== TIME ENTRIES ====================
+
+  async getTimeEntries(ticketId: string) {
+    return this.prisma.timeEntry.findMany({
+      where: { ticketId },
+      include: { user: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+      orderBy: { date: 'desc' },
+    });
+  }
+
+  async addTimeEntry(ticketId: string, user: any, data: { minutes: number; description?: string }) {
+    return this.prisma.timeEntry.create({
+      data: {
+        ticketId,
+        userId: user.id,
+        minutes: data.minutes,
+        description: data.description || null,
+      },
+      include: { user: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+    });
+  }
+
+  async deleteTimeEntry(id: string, user: any) {
+    const entry = await this.prisma.timeEntry.findUnique({ where: { id } });
+    if (!entry) throw new NotFoundException();
+    if (entry.userId !== user.id && user.globalRole !== 'GLOBAL_ADMIN') throw new ForbiddenException();
+    return this.prisma.timeEntry.delete({ where: { id } });
+  }
+
+  // ==================== TIMELINE ====================
+
+  async getTimeline(ticketId: string) {
+    const [history, messages, notes, forwards, timeEntries] = await Promise.all([
+      this.prisma.ticketHistory.findMany({
+        where: { ticketId },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.message.findMany({
+        where: { ticketId },
+        include: { author: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.internalNote.findMany({
+        where: { ticketId },
+        include: { author: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.ticketForward.findMany({
+        where: { ticketId },
+        include: {
+          fromUser: { select: { id: true, firstName: true, lastName: true } },
+          toUser: { select: { id: true, firstName: true, lastName: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.timeEntry.findMany({
+        where: { ticketId },
+        include: { user: { select: { id: true, firstName: true, lastName: true } } },
+        orderBy: { date: 'asc' },
+      }),
+    ]);
+
+    // Get user names for history changedById
+    const userIds = [...new Set(history.filter(h => h.changedById).map(h => h.changedById!))];
+    const users = userIds.length > 0
+      ? await this.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, firstName: true, lastName: true } })
+      : [];
+    const userMap = Object.fromEntries(users.map(u => [u.id, u]));
+
+    // Build unified timeline
+    const events: any[] = [];
+
+    for (const h of history) {
+      events.push({
+        type: 'change', field: h.field, oldValue: h.oldValue, newValue: h.newValue,
+        user: h.changedById ? userMap[h.changedById] : null,
+        timestamp: h.createdAt,
+      });
+    }
+
+    for (const m of messages) {
+      events.push({
+        type: 'message', id: m.id, content: m.content, user: m.author,
+        timestamp: m.createdAt, isEdited: m.isEdited,
+      });
+    }
+
+    for (const n of notes) {
+      events.push({
+        type: 'note', id: n.id, content: n.content, user: n.author,
+        timestamp: n.createdAt,
+      });
+    }
+
+    for (const f of forwards) {
+      events.push({
+        type: 'forward', fromUser: f.fromUser, toUser: f.toUser, message: f.message,
+        timestamp: f.createdAt,
+      });
+    }
+
+    for (const t of timeEntries) {
+      events.push({
+        type: 'time', minutes: t.minutes, description: t.description, user: t.user,
+        timestamp: t.date,
+      });
+    }
+
+    // Sort by timestamp
+    events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    return events;
+  }
+
+  // ==================== BULK ACTIONS ====================
+
+  async bulkUpdate(user: any, data: { ticketIds: string[]; action: string; value?: string }) {
+    const { ticketIds, action, value } = data;
+    if (!ticketIds?.length) return { updated: 0 };
+
+    const results: string[] = [];
+
+    for (const ticketId of ticketIds) {
+      try {
+        switch (action) {
+          case 'close':
+            await this.prisma.ticket.update({
+              where: { id: ticketId },
+              data: { status: 'CLOSED' as any, closedAt: new Date() },
+            });
+            results.push(ticketId);
+            break;
+          case 'archive':
+            await this.prisma.ticket.update({
+              where: { id: ticketId },
+              data: { isArchived: true, archivedAt: new Date() },
+            });
+            results.push(ticketId);
+            break;
+          case 'unarchive':
+            await this.prisma.ticket.update({
+              where: { id: ticketId },
+              data: { isArchived: false, archivedAt: null },
+            });
+            results.push(ticketId);
+            break;
+          case 'assign':
+            if (value) {
+              await this.prisma.ticket.update({
+                where: { id: ticketId },
+                data: { assignedToId: value },
+              });
+              results.push(ticketId);
+            }
+            break;
+          case 'priority':
+            if (value) {
+              await this.prisma.ticket.update({
+                where: { id: ticketId },
+                data: { priority: value as any },
+              });
+              results.push(ticketId);
+            }
+            break;
+          case 'status':
+            if (value) {
+              await this.prisma.ticket.update({
+                where: { id: ticketId },
+                data: { status: value as any, ...(value === 'CLOSED' ? { closedAt: new Date() } : {}) },
+              });
+              results.push(ticketId);
+            }
+            break;
+          case 'delete':
+            if (user.globalRole === 'GLOBAL_ADMIN') {
+              await this.prisma.ticket.delete({ where: { id: ticketId } });
+              results.push(ticketId);
+            }
+            break;
+        }
+      } catch (e) { /* skip failed */ }
+    }
+
+    return { updated: results.length, ticketIds: results };
+  }
 }

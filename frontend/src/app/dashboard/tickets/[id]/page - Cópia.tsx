@@ -9,6 +9,7 @@ import { useNotificationStore } from '@/stores/notifications';
 import {
   ArrowLeft, Send, Paperclip, Eye, EyeOff, Copy, Clock, AlertTriangle,
   Loader2, Image as ImageIcon, Bold, Italic, List, X, Bell, BellOff, UserPlus,
+  Forward, Trash2, Share2, Archive, ArchiveRestore,
 } from 'lucide-react';
 import RichTextEditor from '@/components/common/RichTextEditor';
 import type { UploadedFile } from '@/components/common/RichTextEditor';
@@ -51,7 +52,7 @@ function WatchersWidget({ ticket, onUpdate }: { ticket: any; onUpdate: () => voi
     try {
       await api.addWatcher(ticket.id, userId);
       onUpdate();
-    } catch {} finally { setLoading(false); }
+    } catch { } finally { setLoading(false); }
   };
 
   const removeWatcher = async (userId: string) => {
@@ -59,7 +60,7 @@ function WatchersWidget({ ticket, onUpdate }: { ticket: any; onUpdate: () => voi
     try {
       await api.removeWatcher(ticket.id, userId);
       onUpdate();
-    } catch {} finally { setLoading(false); }
+    } catch { } finally { setLoading(false); }
   };
 
   const toggleSelfWatch = async () => {
@@ -225,7 +226,7 @@ export default function TicketDetailPage() {
   const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!note.trim()) return;
-    try { await api.addNote(ticket.id, note); setNote(''); fetchTicket(); } catch {}
+    try { await api.addNote(ticket.id, note); setNote(''); fetchTicket(); } catch { }
   };
 
   const handleStatusChange = async (status: string) => {
@@ -242,6 +243,47 @@ export default function TicketDetailPage() {
   const handleDuplicate = async () => {
     const dup = await api.duplicateTicket(ticket.id);
     router.push(`/dashboard/tickets/${dup.id}`);
+  };
+
+  const [showForward, setShowForward] = useState(false);
+  const [forwardTo, setForwardTo] = useState('');
+  const [forwardMsg, setForwardMsg] = useState('');
+  const [forwardUsers, setForwardUsers] = useState<any[]>([]);
+  const [forwarding, setForwarding] = useState(false);
+
+  const loadForwardUsers = async () => {
+    const res = await api.getUsers({ limit: '200' });
+    setForwardUsers((res.data || res).filter((u: any) => u.id !== user?.id));
+  };
+
+  const handleForward = async () => {
+    if (!forwardTo) return;
+    setForwarding(true);
+    try {
+      await api.forwardTicket(ticket.id, forwardTo, forwardMsg);
+      setShowForward(false); setForwardTo(''); setForwardMsg('');
+      fetchTicket();
+    } catch (e: any) { alert(e.message); }
+    finally { setForwarding(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm(`Delete ticket ${ticket.ticketNumber} "${ticket.title}"? This cannot be undone.`)) return;
+    try {
+      await api.deleteTicket(ticket.id);
+      router.push('/dashboard/tickets');
+    } catch (e: any) { alert(e.message); }
+  };
+
+  const handleArchive = async () => {
+    try {
+      if (ticket.isArchived) {
+        await api.unarchiveTicket(ticket.id);
+      } else {
+        await api.archiveTicket(ticket.id);
+      }
+      fetchTicket();
+    } catch (e: any) { alert(e.message); }
   };
 
   const getSlaInfo = () => {
@@ -273,6 +315,7 @@ export default function TicketDetailPage() {
             <span className={`px-2 py-0.5 rounded-md text-xs font-medium ${statusColors[ticket.status]}`}>{ticket.status.replace('_', ' ')}</span>
             {ticket.priority === 'URGENT' && <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-red-500/10 text-red-400 animate-pulse">URGENT</span>}
             {ticket.priority === 'HIGH' && <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-amber-500/10 text-amber-400">HIGH</span>}
+            {ticket.isArchived && <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-zinc-500/10 text-zinc-400 flex items-center gap-1"><Archive size={10} /> ARCHIVED</span>}
             {sla && <span className={`px-2 py-0.5 rounded-md text-xs font-medium flex items-center gap-1 ${sla.color}`}><sla.icon size={10} /> {sla.text}</span>}
           </div>
           <h1 className="text-xl font-bold">{ticket.title}</h1>
@@ -280,7 +323,7 @@ export default function TicketDetailPage() {
         {canManage && (
           <div className="flex items-center gap-2 shrink-0">
             <select value={ticket.status} onChange={(e) => handleStatusChange(e.target.value)} className="h-9 px-3 rounded-lg bg-secondary border border-border text-sm">
-              {['DRAFT', 'OPEN', 'IN_PROGRESS', 'WAITING_REPLY', 'APPROVED', 'REJECTED', 'CLOSED'].map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+              {['OPEN', 'IN_PROGRESS', 'WAITING_REPLY', 'APPROVED', 'REJECTED', 'CLOSED'].map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
             </select>
             {Object.keys(actions).length > 0 && (
               <div className="relative">
@@ -295,6 +338,21 @@ export default function TicketDetailPage() {
               </div>
             )}
             <button onClick={handleDuplicate} className="h-9 px-3 rounded-lg border border-border text-sm hover:bg-accent" title="Duplicate"><Copy size={14} /></button>
+            <button onClick={() => { setShowForward(true); loadForwardUsers(); }} className="h-9 px-3 rounded-lg border border-border text-sm hover:bg-accent flex items-center gap-1.5" title="Forward">
+              <Share2 size={14} /><span className="hidden sm:inline text-xs">Forward</span>
+            </button>
+            {(ticket.status === 'CLOSED' || ticket.status === 'REJECTED' || ticket.isArchived) && (
+              <button onClick={handleArchive} className={`h-9 px-3 rounded-lg border text-sm hover:bg-accent flex items-center gap-1.5 ${ticket.isArchived ? 'border-amber-500/30 text-amber-400' : 'border-border'}`}
+                title={ticket.isArchived ? 'Unarchive' : 'Archive'}>
+                {ticket.isArchived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
+                <span className="hidden sm:inline text-xs">{ticket.isArchived ? 'Unarchive' : 'Archive'}</span>
+              </button>
+            )}
+            {isAdmin && (
+              <button onClick={handleDelete} className="h-9 px-3 rounded-lg border border-red-500/30 text-red-400 text-sm hover:bg-red-500/10" title="Delete ticket">
+                <Trash2 size={14} />
+              </button>
+            )}
             <button
               onClick={async () => {
                 await markTicketUnread(ticket.id);
@@ -310,6 +368,43 @@ export default function TicketDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Forward Modal */}
+      {showForward && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowForward(false)}>
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <h3 className="font-semibold flex items-center gap-2"><Share2 size={16} /> Forward Ticket</h3>
+              <button onClick={() => setShowForward(false)} className="p-1 hover:bg-accent rounded-lg"><X size={16} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Forward to</label>
+                <select value={forwardTo} onChange={e => setForwardTo(e.target.value)}
+                  className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm">
+                  <option value="">Select user...</option>
+                  {forwardUsers.map((u: any) => (
+                    <option key={u.id} value={u.id}>{u.firstName} {u.lastName} ({u.email})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Message (optional)</label>
+                <textarea className="w-full h-20 px-3 py-2 rounded-lg bg-secondary border border-border text-sm resize-none"
+                  placeholder="Add a note about why you're forwarding this..."
+                  value={forwardMsg} onChange={e => setForwardMsg(e.target.value)} />
+              </div>
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setShowForward(false)} className="h-9 px-4 rounded-lg text-sm hover:bg-accent">Cancel</button>
+                <button onClick={handleForward} disabled={!forwardTo || forwarding}
+                  className="flex items-center gap-2 h-9 px-5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
+                  {forwarding ? <Loader2 className="animate-spin" size={14} /> : <Share2 size={14} />} Forward
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main content */}
@@ -346,16 +441,14 @@ export default function TicketDetailPage() {
           {/* Form Data */}
           {/* Entity info (Client/Supplier) from ticket.metadata */}
           {ticket.metadata?.entityType && ticket.metadata.entityType !== 'none' && (
-            <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
-              ticket.metadata.entityType === 'client'
+            <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${ticket.metadata.entityType === 'client'
                 ? 'bg-blue-500/5 border-blue-500/20'
                 : 'bg-emerald-500/5 border-emerald-500/20'
-            }`}>
-              <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${
-                ticket.metadata.entityType === 'client'
+              }`}>
+              <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${ticket.metadata.entityType === 'client'
                   ? 'bg-blue-500/10 text-blue-500'
                   : 'bg-emerald-500/10 text-emerald-500'
-              }`}>{ticket.metadata.entityType}</span>
+                }`}>{ticket.metadata.entityType}</span>
               <span className="text-sm font-medium">{ticket.metadata.entityName || '—'}</span>
             </div>
           )}
@@ -369,11 +462,11 @@ export default function TicketDetailPage() {
                   {Object.entries(ticket.formSubmission.data)
                     .filter(([k, v]) => !k.endsWith('_files') && !k.startsWith('_entity') && !Array.isArray(v))
                     .map(([key, val]: any) => (
-                    <div key={key} className="bg-secondary/50 rounded-lg px-3 py-2">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{key.replace(/_/g, ' ')}</p>
-                      <p className="text-sm font-medium mt-0.5">{String(val || '-')}</p>
-                    </div>
-                  ))}
+                      <div key={key} className="bg-secondary/50 rounded-lg px-3 py-2">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{key.replace(/_/g, ' ')}</p>
+                        <p className="text-sm font-medium mt-0.5">{String(val || '-')}</p>
+                      </div>
+                    ))}
                 </div>
                 {/* Table/Repeater fields (arrays of objects) */}
                 {Object.entries(ticket.formSubmission.data)

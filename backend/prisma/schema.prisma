@@ -128,6 +128,8 @@ model User {
   permissions       UserPermission[]
   forwardsSent      TicketForward[]  @relation("ForwardFrom")
   forwardsReceived  TicketForward[]  @relation("ForwardTo")
+  cannedResponses   CannedResponse[]
+  timeEntries       TimeEntry[]
 
   @@map("users")
 }
@@ -176,6 +178,7 @@ model Department {
   toTickets       Ticket[]  @relation("TicketToDept")
   requestCategories RequestCategory[]
   notificationPolicies NotificationPolicy[]
+  cannedResponses   CannedResponse[]
 
   @@map("departments")
 }
@@ -301,6 +304,7 @@ model Ticket {
   historyLogs       TicketHistory[]
   formSubmission    FormSubmission?
   forwards          TicketForward[]
+  timeEntries       TimeEntry[]
 
   @@index([status])
   @@index([priority])
@@ -593,4 +597,42 @@ model TicketForward {
   toUser     User     @relation("ForwardTo", fields: [toUserId], references: [id])
 
   @@map("ticket_forwards")
+}
+
+// ==================== CANNED RESPONSES ====================
+
+model CannedResponse {
+  id           String   @id @default(cuid())
+  title        String
+  content      String
+  category     String?
+  shortcut     String?  // e.g. /greeting, /closing
+  departmentId String?  @map("department_id")
+  createdById  String   @map("created_by_id")
+  isGlobal     Boolean  @default(false) @map("is_global")
+  usageCount   Int      @default(0) @map("usage_count")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  department   Department? @relation(fields: [departmentId], references: [id])
+  createdBy    User        @relation(fields: [createdById], references: [id])
+
+  @@map("canned_responses")
+}
+
+// ==================== TIME TRACKING ====================
+
+model TimeEntry {
+  id          String   @id @default(cuid())
+  ticketId    String   @map("ticket_id")
+  userId      String   @map("user_id")
+  minutes     Int
+  description String?
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  ticket      Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@map("time_entries")
 }

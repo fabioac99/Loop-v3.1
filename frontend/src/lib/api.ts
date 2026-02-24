@@ -172,6 +172,20 @@ class ApiClient {
   // Analytics
   getAnalytics(params?: any) { return this.get<any>(`/analytics?${new URLSearchParams(params || {})}`); }
   getTeamPerformance() { return this.get<any>('/analytics/team-performance'); }
+  // Canned responses
+  getCannedResponses() { return this.get<any[]>('/canned-responses'); }
+  createCannedResponse(data: any) { return this.post<any>('/canned-responses', data); }
+  updateCannedResponse(id: string, data: any) { return this.put<any>(`/canned-responses/${id}`, data); }
+  deleteCannedResponse(id: string) { return this.delete<any>(`/canned-responses/${id}`); }
+  useCannedResponse(id: string) { return this.post<any>(`/canned-responses/${id}/use`); }
+  // Time entries
+  getTimeEntries(ticketId: string) { return this.get<any[]>(`/tickets/${ticketId}/time-entries`); }
+  addTimeEntry(ticketId: string, data: { minutes: number; description?: string }) { return this.post<any>(`/tickets/${ticketId}/time-entries`, data); }
+  deleteTimeEntry(entryId: string) { return this.delete<any>(`/tickets/time-entries/${entryId}`); }
+  // Timeline
+  getTimeline(ticketId: string) { return this.get<any[]>(`/tickets/${ticketId}/timeline`); }
+  // Bulk actions
+  bulkUpdateTickets(data: { ticketIds: string[]; action: string; value?: string }) { return this.post<any>('/tickets/bulk/update', data); }
   exportAnalytics(params?: any) { return this.get<any>(`/analytics/export?${new URLSearchParams(params || {})}`); }
 
   // Search

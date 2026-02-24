@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/notifications';
-import { Plus, Loader2, ChevronLeft, ChevronRight, Clock, AlertTriangle, Bell, X, User, Building2, PenSquare } from 'lucide-react';
+import { Plus, Loader2, ChevronLeft, ChevronRight, Clock, AlertTriangle, Bell, X, User, Building2, PenSquare, Archive } from 'lucide-react';
 import RichTextEditor from '@/components/common/RichTextEditor';
 import FileAttachment, { type UploadedFile } from '@/components/common/FileAttachment';
 import EntityTypeSelector from '@/components/common/EntityTypeSelector';
@@ -468,7 +468,7 @@ export default function TicketsPage() {
   const [filters, setFilters] = useState({ status: '', priority: '', search: '' });
   const [showCreate, setShowCreate] = useState(searchParams.get('new') === 'true');
   const isDeptHead = user?.departmentRole === 'DEPARTMENT_HEAD' || user?.globalRole === 'GLOBAL_ADMIN';
-  const [view, setView] = useState<'personal' | 'department' | 'drafts'>('personal');
+  const [view, setView] = useState<'personal' | 'department' | 'drafts' | 'archived'>('personal');
   const [showToggle, setShowToggle] = useState(false);
 
   // Update toggle visibility when user loads
@@ -498,7 +498,7 @@ export default function TicketsPage() {
   useEffect(() => { fetchTickets(); }, [fetchTickets]);
 
   // Reset page when switching views
-  const switchView = (v: 'personal' | 'department' | 'drafts') => {
+  const switchView = (v: 'personal' | 'department' | 'drafts' | 'archived') => {
     setView(v);
     setPage(1);
   };
@@ -529,29 +529,33 @@ export default function TicketsPage() {
       <div className="flex gap-1 bg-secondary rounded-xl p-1 w-fit">
         <button
           onClick={() => switchView('personal')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            view === 'personal' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
-          }`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'personal' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
         >
           <User size={15} /> My Tickets
         </button>
         {showToggle && (
           <button
             onClick={() => switchView('department')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              view === 'department' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
-            }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'department' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+              }`}
           >
             <Building2 size={15} /> Department
           </button>
         )}
         <button
           onClick={() => switchView('drafts')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            view === 'drafts' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
-          }`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'drafts' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
         >
           <PenSquare size={15} /> Drafts
+        </button>
+        <button
+          onClick={() => switchView('archived')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'archived' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
+        >
+          <Archive size={15} /> Archived
         </button>
       </div>
 

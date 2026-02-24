@@ -5,10 +5,10 @@ import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'next/navigation';
 import {
   Shield, Building2, Users, Ticket, Loader2, Plus, Save, X, Trash2, Edit2,
-  ChevronRight, Lock, Palette, AlertTriangle, Clock, Check, ArrowUpDown
+  ChevronRight, Lock, Palette, AlertTriangle, Clock, Check, ArrowUpDown, MessageSquare
 } from 'lucide-react';
 
-type Tab = 'departments' | 'permissions' | 'statuses' | 'priorities' | 'workhours';
+type Tab = 'departments' | 'permissions' | 'statuses' | 'priorities' | 'workhours' | 'canned';
 
 export default function AdminPage() {
   const { user } = useAuthStore();
@@ -27,6 +27,7 @@ export default function AdminPage() {
     { id: 'statuses', label: 'Statuses', icon: ArrowUpDown },
     { id: 'priorities', label: 'Priorities & SLA', icon: Clock },
     { id: 'workhours', label: 'Work Hours', icon: Clock },
+    { id: 'canned', label: 'Canned Responses', icon: MessageSquare },
   ];
 
   return (
@@ -51,6 +52,7 @@ export default function AdminPage() {
       {tab === 'statuses' && <StatusesTab />}
       {tab === 'priorities' && <PrioritiesTab />}
       {tab === 'workhours' && <WorkHoursTab />}
+      {tab === 'canned' && <CannedResponsesTab />}
     </div>
   );
 }
@@ -715,6 +717,189 @@ function WorkHoursTab() {
         className="flex items-center gap-2 h-10 px-6 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50">
         {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />} Save Work Hours
       </button>
+    </div>
+  );
+}
+
+/* ============================== CANNED RESPONSES TAB ============================== */
+function CannedResponsesTab() {
+  const { user } = useAuthStore();
+  const [responses, setResponses] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+  const [form, setForm] = useState({ title: '', content: '', category: '', shortcut: '', departmentId: '', isGlobal: true });
+  const [saving, setSaving] = useState(false);
+
+  const fetchData = async () => {
+    setLoading(true);
+    const [r, d] = await Promise.all([api.getCannedResponses(), api.getDepartments()]);
+    setResponses(r); setDepartments(d); setLoading(false);
+  };
+  useEffect(() => { fetchData(); }, []);
+
+  const openCreate = () => {
+    setEditing(null);
+    setForm({ title: '', content: '', category: '', shortcut: '', departmentId: '', isGlobal: true });
+    setShowForm(true);
+  };
+
+  const openEdit = (cr: any) => {
+    setEditing(cr);
+    setForm({
+      title: cr.title, content: cr.content, category: cr.category || '',
+      shortcut: cr.shortcut || '', departmentId: cr.departmentId || '', isGlobal: cr.isGlobal,
+    });
+    setShowForm(true);
+  };
+
+  const handleSave = async () => {
+    if (!form.title || !form.content) return;
+    setSaving(true);
+    try {
+      if (editing) {
+        await api.updateCannedResponse(editing.id, form);
+      } else {
+        await api.createCannedResponse(form);
+      }
+      setShowForm(false); fetchData();
+    } catch (e: any) { alert(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this canned response?')) return;
+    await api.deleteCannedResponse(id);
+    fetchData();
+  };
+
+  // Group by category
+  const grouped = responses.reduce((acc: Record<string, any[]>, cr: any) => {
+    const cat = cr.category || 'Uncategorized';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(cr);
+    return acc;
+  }, {});
+
+  if (loading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-primary" size={24} /></div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold">Canned Responses</h2>
+          <p className="text-sm text-muted-foreground">Pre-written replies agents can quickly insert when replying to tickets</p>
+        </div>
+        <button onClick={openCreate} className="flex items-center gap-2 h-9 px-4 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90">
+          <Plus size={14} /> New Response
+        </button>
+      </div>
+
+      {/* List */}
+      {Object.keys(grouped).length === 0 ? (
+        <div className="bg-card border border-border rounded-2xl p-12 text-center">
+          <MessageSquare size={32} className="mx-auto text-muted-foreground mb-3" />
+          <p className="text-sm text-muted-foreground">No canned responses yet. Create one to help agents reply faster.</p>
+        </div>
+      ) : (
+        Object.entries(grouped).map(([category, items]) => (
+          <div key={category} className="bg-card border border-border rounded-2xl overflow-hidden">
+            <div className="px-5 py-3 bg-secondary/50 border-b border-border">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{category}</h3>
+            </div>
+            <div className="divide-y divide-border">
+              {(items as any[]).map((cr: any) => (
+                <div key={cr.id} className="flex items-start gap-4 p-4 hover:bg-accent/30 group">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-semibold">{cr.title}</span>
+                      {cr.shortcut && <span className="text-[10px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded">{cr.shortcut}</span>}
+                      {cr.isGlobal ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500">Global</span>
+                      ) : cr.department ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500">{cr.department.name}</span>
+                      ) : (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-500/10 text-zinc-400">Personal</span>
+                      )}
+                      <span className="text-[10px] text-muted-foreground ml-auto">Used {cr.usageCount}×</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{cr.content}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">By {cr.createdBy?.firstName} {cr.createdBy?.lastName}</p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => openEdit(cr)} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground"><Edit2 size={13} /></button>
+                    <button onClick={() => handleDelete(cr.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400"><Trash2 size={13} /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))
+      )}
+
+      {/* Create/Edit Modal */}
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowForm(false)}>
+          <div className="bg-card border border-border rounded-2xl w-full max-w-lg m-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-border flex items-center justify-between">
+              <h2 className="text-base font-bold">{editing ? 'Edit' : 'Create'} Canned Response</h2>
+              <button onClick={() => setShowForm(false)} className="p-1 rounded hover:bg-accent text-muted-foreground"><X size={16} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Title <span className="text-destructive">*</span></label>
+                <input className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.title}
+                  onChange={e => setForm({ ...form, title: e.target.value })} placeholder="e.g. Greeting, Password Reset Instructions" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Content <span className="text-destructive">*</span></label>
+                <textarea className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm min-h-[120px] resize-y" value={form.content}
+                  onChange={e => setForm({ ...form, content: e.target.value })} placeholder="Write the response template..." />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Category</label>
+                  <input className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.category}
+                    onChange={e => setForm({ ...form, category: e.target.value })} placeholder="e.g. Greetings, IT, HR" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Shortcut</label>
+                  <input className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.shortcut}
+                    onChange={e => setForm({ ...form, shortcut: e.target.value })} placeholder="e.g. /greeting" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Scope</label>
+                <div className="flex gap-2">
+                  <button onClick={() => setForm({ ...form, isGlobal: true, departmentId: '' })}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${form.isGlobal ? 'border-primary text-primary bg-primary/5' : 'border-border text-muted-foreground'}`}>
+                    Global (everyone)
+                  </button>
+                  <button onClick={() => setForm({ ...form, isGlobal: false })}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${!form.isGlobal ? 'border-primary text-primary bg-primary/5' : 'border-border text-muted-foreground'}`}>
+                    Department
+                  </button>
+                </div>
+                {!form.isGlobal && (
+                  <select className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm mt-2" value={form.departmentId}
+                    onChange={e => setForm({ ...form, departmentId: e.target.value })}>
+                    <option value="">Personal (only me)</option>
+                    {departments.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                )}
+              </div>
+            </div>
+            <div className="p-5 border-t border-border flex justify-end gap-2">
+              <button onClick={() => setShowForm(false)} className="h-9 px-4 rounded-lg border border-border text-sm hover:bg-accent">Cancel</button>
+              <button onClick={handleSave} disabled={saving || !form.title || !form.content}
+                className="flex items-center gap-2 h-9 px-5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
+                {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />} {editing ? 'Update' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
