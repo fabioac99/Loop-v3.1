@@ -6,7 +6,8 @@ import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/notifications';
-import { Plus, Loader2, ChevronLeft, ChevronRight, Clock, AlertTriangle, Bell, X, User, Building2, PenSquare, Archive, CheckSquare, Square } from 'lucide-react';
+import { useSocketEvent } from '@/hooks/useSocket';
+import { Plus, Loader2, ChevronLeft, ChevronRight, Clock, AlertTriangle, Bell, X, User, Building2, PenSquare, Archive, CheckSquare, Square, BookmarkPlus } from 'lucide-react';
 import RichTextEditor from '@/components/common/RichTextEditor';
 import FileAttachment, { type UploadedFile } from '@/components/common/FileAttachment';
 import EntityTypeSelector from '@/components/common/EntityTypeSelector';
@@ -35,11 +36,15 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
   const [selectedSubtype, setSelectedSubtype] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState('');
 
   useEffect(() => {
     if (open) {
       api.getDepartments().then(setDepartments);
       api.getUsers().then((r) => setUsers(r.data));
+      api.getTicketTemplates().then(setTemplates).catch(() => setTemplates([]));
       setForm({ title: '', description: '', toDepartmentId: '', subtypeId: '', assignedToId: '', priority: 'NORMAL', dueDate: '', formData: {}, entityType: '', entityId: '', entityName: '' });
       setAttachments([]);
       setCcUserIds([]);
@@ -47,6 +52,35 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
       setError('');
     }
   }, [open]);
+
+  const applyTemplate = (t: any) => {
+    setForm(prev => ({
+      ...prev,
+      title: t.title || prev.title,
+      content: t.content || prev.description,
+      description: t.content || prev.description,
+      toDepartmentId: t.toDepartmentId || prev.toDepartmentId,
+      subtypeId: t.subtypeId || prev.subtypeId,
+      priority: t.priority || prev.priority,
+    }));
+    api.useTicketTemplate(t.id).catch(() => { });
+  };
+
+  const saveAsTemplate = async () => {
+    if (!templateName) return;
+    await api.createTicketTemplate({
+      name: templateName,
+      title: form.title,
+      content: form.description,
+      toDepartmentId: form.toDepartmentId || null,
+      subtypeId: form.subtypeId || null,
+      priority: form.priority,
+      isGlobal: false,
+    });
+    setShowSaveTemplate(false);
+    setTemplateName('');
+    api.getTicketTemplates().then(setTemplates).catch(() => { });
+  };
 
   useEffect(() => {
     if (form.toDepartmentId) {
@@ -308,8 +342,39 @@ function CreateTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm pt-[5vh]" onClick={onClose}>
       <div className="bg-card border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="p-6 border-b border-border sticky top-0 bg-card z-10 rounded-t-2xl">
-          <h2 className="text-lg font-bold">New Request</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Create a new inter-department request</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold">New Request</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Create a new inter-department request</p>
+            </div>
+            <button type="button" onClick={() => setShowSaveTemplate(!showSaveTemplate)}
+              className="text-[11px] px-2.5 py-1.5 rounded-lg border border-border hover:bg-accent text-muted-foreground flex items-center gap-1">
+              <BookmarkPlus size={12} /> Save as Template
+            </button>
+          </div>
+          {/* Template picker */}
+          {templates.length > 0 && (
+            <div className="mt-3 flex gap-1.5 flex-wrap">
+              <span className="text-[10px] text-muted-foreground self-center mr-1">Templates:</span>
+              {templates.map(t => (
+                <button key={t.id} type="button" onClick={() => applyTemplate(t)}
+                  className="text-[11px] px-2 py-1 rounded-lg bg-primary/5 border border-primary/20 text-primary hover:bg-primary/10 transition-all">
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          )}
+          {/* Save as template form */}
+          {showSaveTemplate && (
+            <div className="mt-3 flex gap-2 items-center">
+              <input placeholder="Template name..." value={templateName} onChange={e => setTemplateName(e.target.value)}
+                className="flex-1 h-8 px-3 rounded-lg bg-secondary border border-border text-sm" />
+              <button type="button" onClick={saveAsTemplate} disabled={!templateName}
+                className="h-8 px-3 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:opacity-90 disabled:opacity-40">Save</button>
+              <button type="button" onClick={() => setShowSaveTemplate(false)}
+                className="h-8 px-2 rounded-lg hover:bg-accent text-muted-foreground"><X size={14} /></button>
+            </div>
+          )}
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {/* Department + Type */}
@@ -517,6 +582,10 @@ export default function TicketsPage() {
 
   useEffect(() => { fetchTickets(); }, [fetchTickets]);
 
+  // Real-time: refresh list when any ticket changes
+  useSocketEvent('tickets:refresh', () => { fetchTickets(); });
+  useSocketEvent('ticket:created', () => { fetchTickets(); });
+
   // Reset page when switching views
   const switchView = (v: 'personal' | 'department' | 'drafts' | 'archived') => {
     setView(v);
@@ -549,35 +618,31 @@ export default function TicketsPage() {
       <div className="flex gap-1 bg-secondary rounded-xl p-1 w-fit">
         <button
           onClick={() => switchView('personal')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            view === 'personal' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
-          }`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'personal' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
         >
           <User size={15} /> My Tickets
         </button>
         {showToggle && (
           <button
             onClick={() => switchView('department')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              view === 'department' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
-            }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'department' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+              }`}
           >
             <Building2 size={15} /> Department
           </button>
         )}
         <button
           onClick={() => switchView('drafts')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            view === 'drafts' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
-          }`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'drafts' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
         >
           <PenSquare size={15} /> Drafts
         </button>
         <button
           onClick={() => switchView('archived')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            view === 'archived' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
-          }`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'archived' ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
         >
           <Archive size={15} /> Archived
         </button>
@@ -605,80 +670,80 @@ export default function TicketsPage() {
           <p className="p-8 text-center text-muted-foreground text-sm">No tickets found</p>
         ) : (
           <>
-          {/* Bulk actions bar */}
-          <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-secondary/30">
-            <button onClick={toggleSelectAll} className="p-0.5 rounded hover:bg-accent text-muted-foreground shrink-0">
-              {selected.size === tickets.length && tickets.length > 0 ? <CheckSquare size={16} className="text-primary" /> : <Square size={16} />}
-            </button>
-            {selected.size > 0 && (
-              <>
-                <span className="text-xs font-medium text-primary">{selected.size} selected</span>
-                <div className="h-4 w-px bg-border" />
-                <button onClick={() => handleBulkAction('close')} className="text-[11px] px-2 py-1 rounded bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20">Close</button>
-                <button onClick={() => handleBulkAction('archive')} className="text-[11px] px-2 py-1 rounded bg-zinc-500/10 text-zinc-400 hover:bg-zinc-500/20">Archive</button>
-                <button onClick={() => handleBulkAction('status', 'IN_PROGRESS')} className="text-[11px] px-2 py-1 rounded bg-amber-500/10 text-amber-400 hover:bg-amber-500/20">In Progress</button>
-                {isDeptHead && <button onClick={() => handleBulkAction('delete')} className="text-[11px] px-2 py-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20">Delete</button>}
-                <button onClick={() => setSelected(new Set())} className="text-[11px] px-2 py-1 rounded hover:bg-accent text-muted-foreground ml-auto">Clear</button>
-              </>
-            )}
-          </div>
-          <div className="divide-y divide-border">
-            {tickets.map((ticket) => {
-              const sla = getSlaStatus(ticket);
-              const hasUnread = unreadTicketIds.includes(ticket.id);
-              const isSelected = selected.has(ticket.id);
-              return (
-                <div key={ticket.id} className={`flex items-center gap-3 p-4 hover:bg-accent/50 transition-all group relative
+            {/* Bulk actions bar */}
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-secondary/30">
+              <button onClick={toggleSelectAll} className="p-0.5 rounded hover:bg-accent text-muted-foreground shrink-0">
+                {selected.size === tickets.length && tickets.length > 0 ? <CheckSquare size={16} className="text-primary" /> : <Square size={16} />}
+              </button>
+              {selected.size > 0 && (
+                <>
+                  <span className="text-xs font-medium text-primary">{selected.size} selected</span>
+                  <div className="h-4 w-px bg-border" />
+                  <button onClick={() => handleBulkAction('close')} className="text-[11px] px-2 py-1 rounded bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20">Close</button>
+                  <button onClick={() => handleBulkAction('archive')} className="text-[11px] px-2 py-1 rounded bg-zinc-500/10 text-zinc-400 hover:bg-zinc-500/20">Archive</button>
+                  <button onClick={() => handleBulkAction('status', 'IN_PROGRESS')} className="text-[11px] px-2 py-1 rounded bg-amber-500/10 text-amber-400 hover:bg-amber-500/20">In Progress</button>
+                  {isDeptHead && <button onClick={() => handleBulkAction('delete')} className="text-[11px] px-2 py-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20">Delete</button>}
+                  <button onClick={() => setSelected(new Set())} className="text-[11px] px-2 py-1 rounded hover:bg-accent text-muted-foreground ml-auto">Clear</button>
+                </>
+              )}
+            </div>
+            <div className="divide-y divide-border">
+              {tickets.map((ticket) => {
+                const sla = getSlaStatus(ticket);
+                const hasUnread = unreadTicketIds.includes(ticket.id);
+                const isSelected = selected.has(ticket.id);
+                return (
+                  <div key={ticket.id} className={`flex items-center gap-3 p-4 hover:bg-accent/50 transition-all group relative
                   ${isSelected ? 'bg-primary/[0.08]' : hasUnread ? 'bg-primary/[0.06] border-l-[3px] border-l-primary' : 'border-l-[3px] border-l-transparent'}`}>
-                  <button onClick={(e) => toggleSelect(ticket.id, e)} className="p-0.5 rounded hover:bg-accent shrink-0">
-                    {isSelected ? <CheckSquare size={15} className="text-primary" /> : <Square size={15} className="text-muted-foreground" />}
-                  </button>
-                  <Link href={`/dashboard/tickets/${ticket.id}`} className="flex items-center gap-3 flex-1 min-w-0">
-                  {/* Unread pulsing dot */}
-                  {hasUnread ? (
-                    <div className="relative shrink-0">
-                      <div className="w-2.5 h-2.5 rounded-full bg-primary" />
-                      <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-primary animate-ping opacity-40" />
-                    </div>
-                  ) : (
-                    <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${priorityDots[ticket.priority]}`} />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      {hasUnread && (
-                        <span className="flex items-center gap-1 px-1.5 py-0.5 bg-primary/15 text-primary rounded text-[10px] font-semibold">
-                          <Bell size={10} className="fill-primary" /> NEW
-                        </span>
+                    <button onClick={(e) => toggleSelect(ticket.id, e)} className="p-0.5 rounded hover:bg-accent shrink-0">
+                      {isSelected ? <CheckSquare size={15} className="text-primary" /> : <Square size={15} className="text-muted-foreground" />}
+                    </button>
+                    <Link href={`/dashboard/tickets/${ticket.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+                      {/* Unread pulsing dot */}
+                      {hasUnread ? (
+                        <div className="relative shrink-0">
+                          <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+                          <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-primary animate-ping opacity-40" />
+                        </div>
+                      ) : (
+                        <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${priorityDots[ticket.priority]}`} />
                       )}
-                      <span className="font-mono text-xs text-muted-foreground">{ticket.ticketNumber}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${statusColors[ticket.status]}`}>{ticket.status.replace('_', ' ')}</span>
-                      {sla === 'red' && <AlertTriangle size={12} className="text-red-400 animate-pulse" />}
-                      {sla === 'yellow' && <Clock size={12} className="text-amber-400" />}
-                      {ticket.subtype && <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{ticket.subtype.category?.name} / {ticket.subtype.name}</span>}
-                      {ticket.metadata?.entityType && ticket.metadata.entityType !== 'none' && (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${ticket.metadata.entityType === 'client' ? 'bg-blue-500/10 text-blue-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
-                          {ticket.metadata.entityType === 'client' ? '👤' : '🚚'} {ticket.metadata.entityName || ticket.metadata.entityType}
-                        </span>
-                      )}
-                    </div>
-                    <p className={`text-sm truncate group-hover:text-primary transition-colors ${hasUnread ? 'font-semibold text-foreground' : 'font-medium'}`}>{ticket.title}</p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          {hasUnread && (
+                            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-primary/15 text-primary rounded text-[10px] font-semibold">
+                              <Bell size={10} className="fill-primary" /> NEW
+                            </span>
+                          )}
+                          <span className="font-mono text-xs text-muted-foreground">{ticket.ticketNumber}</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${statusColors[ticket.status]}`}>{ticket.status.replace('_', ' ')}</span>
+                          {sla === 'red' && <AlertTriangle size={12} className="text-red-400 animate-pulse" />}
+                          {sla === 'yellow' && <Clock size={12} className="text-amber-400" />}
+                          {ticket.subtype && <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{ticket.subtype.category?.name} / {ticket.subtype.name}</span>}
+                          {ticket.metadata?.entityType && ticket.metadata.entityType !== 'none' && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${ticket.metadata.entityType === 'client' ? 'bg-blue-500/10 text-blue-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                              {ticket.metadata.entityType === 'client' ? '👤' : '🚚'} {ticket.metadata.entityName || ticket.metadata.entityType}
+                            </span>
+                          )}
+                        </div>
+                        <p className={`text-sm truncate group-hover:text-primary transition-colors ${hasUnread ? 'font-semibold text-foreground' : 'font-medium'}`}>{ticket.title}</p>
+                      </div>
+                      <div className="flex items-center gap-4 shrink-0 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ticket.fromDepartment?.color }} />
+                          {ticket.fromDepartment?.name}
+                          <span className="mx-1">→</span>
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ticket.toDepartment?.color }} />
+                          {ticket.toDepartment?.name}
+                        </div>
+                        {ticket.assignedTo && <span>{ticket.assignedTo.firstName} {ticket.assignedTo.lastName?.[0]}.</span>}
+                        <span className="text-[10px]">{new Date(ticket.createdAt).toLocaleDateString()}</span>
+                      </div>
+                    </Link>
                   </div>
-                  <div className="flex items-center gap-4 shrink-0 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ticket.fromDepartment?.color }} />
-                      {ticket.fromDepartment?.name}
-                      <span className="mx-1">→</span>
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ticket.toDepartment?.color }} />
-                      {ticket.toDepartment?.name}
-                    </div>
-                    {ticket.assignedTo && <span>{ticket.assignedTo.firstName} {ticket.assignedTo.lastName?.[0]}.</span>}
-                    <span className="text-[10px]">{new Date(ticket.createdAt).toLocaleDateString()}</span>
-                  </div>
-                </Link>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
           </>
         )}
         {total > 25 && (

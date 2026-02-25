@@ -1,15 +1,16 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { getApiUrl } from '@/lib/config';
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/notifications';
+import { useSocket, useSocketEvent } from '@/hooks/useSocket';
 import {
   ArrowLeft, Send, Paperclip, Eye, EyeOff, Copy, Clock, AlertTriangle,
   Loader2, Image as ImageIcon, Bold, Italic, List, X, Bell, BellOff, UserPlus,
-  Forward, Trash2, Share2, Archive, ArchiveRestore, MessageSquare, Timer, History, ChevronDown, Plus,
+  Forward, Trash2, Share2, Archive, ArchiveRestore, MessageSquare, Timer, History, ChevronDown, Plus, GitMerge,
 } from 'lucide-react';
 import RichTextEditor from '@/components/common/RichTextEditor';
 import type { UploadedFile } from '@/components/common/RichTextEditor';
@@ -198,6 +199,34 @@ export default function TicketDetailPage() {
   };
   useEffect(() => { fetchTicket(); }, [id]);
 
+  // WebSocket: join/leave ticket room for real-time updates
+  const { joinTicket, leaveTicket, emitTyping } = useSocket();
+  const [typingUser, setTypingUser] = useState('');
+
+  useEffect(() => {
+    if (id) {
+      joinTicket(id as string);
+      return () => { leaveTicket(id as string); };
+    }
+  }, [id, joinTicket, leaveTicket]);
+
+  // Real-time: refresh ticket when updates arrive
+  useSocketEvent('ticket:updated', (data) => {
+    if (data.ticketId === id) fetchTicket();
+  });
+  useSocketEvent('ticket:statusChanged', (data) => {
+    if (data.ticketId === id) fetchTicket();
+  });
+  useSocketEvent('ticket:newMessage', (data) => {
+    if (data.ticketId === id) fetchTicket();
+  });
+  useSocketEvent('userTyping', (data) => {
+    if (data.ticketId === id && data.userName) {
+      setTypingUser(data.userName);
+      setTimeout(() => setTypingUser(''), 3000);
+    }
+  });
+
   // Auto-mark notifications as read when opening the ticket
   useEffect(() => {
     if (id && unreadTicketIds.includes(id as string)) {
@@ -265,6 +294,7 @@ export default function TicketDetailPage() {
   };
   const insertCanned = (cr: any) => {
     setMessage(prev => prev + (prev ? '\n' : '') + cr.content);
+    api.useCannedResponse(cr.id).catch(() => { });
     setShowCanned(false);
   };
 
@@ -295,6 +325,31 @@ export default function TicketDetailPage() {
     const res = await api.getTimeline(ticket.id);
     setTimeline(res);
     setTimelineLoading(false);
+  };
+
+  // Merge
+  const [showMerge, setShowMerge] = useState(false);
+  const [mergeSearch, setMergeSearch] = useState('');
+  const [mergeResults, setMergeResults] = useState<any[]>([]);
+  const [mergeSelected, setMergeSelected] = useState<Set<string>>(new Set());
+  const [merging, setMerging] = useState(false);
+  const searchMerge = async (q: string) => {
+    setMergeSearch(q);
+    if (q.length < 2) { setMergeResults([]); return; }
+    const res = await api.getTickets({ search: q, limit: '10' });
+    const tickets = res.data || res;
+    setMergeResults(tickets.filter((t: any) => t.id !== ticket?.id));
+  };
+  const handleMerge = async () => {
+    if (mergeSelected.size === 0) return;
+    if (!confirm(`Merge ${mergeSelected.size} ticket(s) into this ticket? Source tickets will be closed and their messages/notes/files moved here.`)) return;
+    setMerging(true);
+    try {
+      await api.mergeTickets(ticket.id, Array.from(mergeSelected));
+      setShowMerge(false); setMergeSelected(new Set());
+      fetchTicket();
+    } catch (e: any) { alert(e.message); }
+    finally { setMerging(false); }
   };
 
   const handleForward = async () => {
@@ -382,6 +437,9 @@ export default function TicketDetailPage() {
             <button onClick={() => { setShowForward(true); loadForwardUsers(); }} className="h-9 px-3 rounded-lg border border-border text-sm hover:bg-accent flex items-center gap-1.5" title="Forward">
               <Share2 size={14} /><span className="hidden sm:inline text-xs">Forward</span>
             </button>
+            <button onClick={() => setShowMerge(true)} className="h-9 px-3 rounded-lg border border-border text-sm hover:bg-accent flex items-center gap-1.5" title="Merge">
+              <GitMerge size={14} /><span className="hidden sm:inline text-xs">Merge</span>
+            </button>
             {(ticket.status === 'CLOSED' || ticket.status === 'REJECTED' || ticket.isArchived) && (
               <button onClick={handleArchive} className={`h-9 px-3 rounded-lg border text-sm hover:bg-accent flex items-center gap-1.5 ${ticket.isArchived ? 'border-amber-500/30 text-amber-400' : 'border-border'}`}
                 title={ticket.isArchived ? 'Unarchive' : 'Archive'}>
@@ -447,6 +505,56 @@ export default function TicketDetailPage() {
         </div>
       )}
 
+      {/* Merge Modal */}
+      {showMerge && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowMerge(false)}>
+          <div className="bg-card border border-border rounded-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <h3 className="font-semibold flex items-center gap-2"><GitMerge size={16} /> Merge Tickets Into #{ticket.ticketNumber}</h3>
+              <button onClick={() => setShowMerge(false)} className="p-1 hover:bg-accent rounded-lg"><X size={16} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-xs text-muted-foreground">Search for tickets to merge into this one. All messages, notes, files, and time entries will be moved here. Source tickets will be closed.</p>
+              <input placeholder="Search by ticket number or title..." value={mergeSearch} onChange={e => searchMerge(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" autoFocus />
+              {mergeResults.length > 0 && (
+                <div className="max-h-48 overflow-y-auto border border-border rounded-xl divide-y divide-border">
+                  {mergeResults.map((t: any) => {
+                    const sel = mergeSelected.has(t.id);
+                    return (
+                      <button key={t.id} onClick={() => {
+                        setMergeSelected(prev => { const n = new Set(prev); sel ? n.delete(t.id) : n.add(t.id); return n; });
+                      }} className={`w-full text-left px-3 py-2 hover:bg-accent/50 flex items-center gap-2 ${sel ? 'bg-primary/5' : ''}`}>
+                        <div className={`w-4 h-4 rounded border ${sel ? 'bg-primary border-primary' : 'border-border'} flex items-center justify-center`}>
+                          {sel && <span className="text-white text-[10px]">✓</span>}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs text-muted-foreground">{t.ticketNumber}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[t.status] || ''}`}>{t.status.replace('_', ' ')}</span>
+                          </div>
+                          <p className="text-sm truncate">{t.title}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {mergeSelected.size > 0 && (
+                <div className="text-xs text-primary font-medium">{mergeSelected.size} ticket(s) selected for merge</div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 p-5 border-t border-border">
+              <button onClick={() => setShowMerge(false)} className="h-9 px-4 rounded-lg border border-border text-sm hover:bg-accent">Cancel</button>
+              <button onClick={handleMerge} disabled={merging || mergeSelected.size === 0}
+                className="flex items-center gap-2 h-9 px-5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
+                {merging ? <Loader2 className="animate-spin" size={14} /> : <GitMerge size={14} />} Merge {mergeSelected.size > 0 ? `(${mergeSelected.size})` : ''}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main content */}
         <div className="lg:col-span-2 space-y-4">
@@ -483,12 +591,12 @@ export default function TicketDetailPage() {
           {/* Entity info (Client/Supplier) from ticket.metadata */}
           {ticket.metadata?.entityType && ticket.metadata.entityType !== 'none' && (
             <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${ticket.metadata.entityType === 'client'
-                ? 'bg-blue-500/5 border-blue-500/20'
-                : 'bg-emerald-500/5 border-emerald-500/20'
+              ? 'bg-blue-500/5 border-blue-500/20'
+              : 'bg-emerald-500/5 border-emerald-500/20'
               }`}>
               <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${ticket.metadata.entityType === 'client'
-                  ? 'bg-blue-500/10 text-blue-500'
-                  : 'bg-emerald-500/10 text-emerald-500'
+                ? 'bg-blue-500/10 text-blue-500'
+                : 'bg-emerald-500/10 text-emerald-500'
                 }`}>{ticket.metadata.entityType}</span>
               <span className="text-sm font-medium">{ticket.metadata.entityName || '—'}</span>
             </div>
@@ -593,10 +701,16 @@ export default function TicketDetailPage() {
 
             {/* Reply area with Rich Text Editor */}
             <div className="border-t border-border p-4">
+              {typingUser && (
+                <div className="text-xs text-muted-foreground mb-2 flex items-center gap-1.5 animate-pulse">
+                  <span className="flex gap-0.5"><span className="w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} /><span className="w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} /><span className="w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} /></span>
+                  {typingUser} is typing...
+                </div>
+              )}
               <form onSubmit={handleSendMessage}>
                 <RichTextEditor
                   value={message}
-                  onChange={setMessage}
+                  onChange={(val) => { setMessage(val); if (user) emitTyping(ticket.id, `${user.firstName} ${user.lastName}`); }}
                   placeholder="Write a reply... Paste images directly or use the toolbar to attach files."
                   minHeight="100px"
                   ticketId={ticket.id}

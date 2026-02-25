@@ -130,6 +130,7 @@ model User {
   forwardsReceived  TicketForward[]  @relation("ForwardTo")
   cannedResponses   CannedResponse[]
   timeEntries       TimeEntry[]
+  ticketTemplates   TicketTemplate[]
 
   @@map("users")
 }
@@ -635,4 +636,60 @@ model TimeEntry {
   user        User     @relation(fields: [userId], references: [id])
 
   @@map("time_entries")
+}
+
+// ==================== TICKET TEMPLATES ====================
+
+model TicketTemplate {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  title           String?  // ticket title template
+  content         String?  // ticket description template
+  categoryId      String?  @map("category_id")
+  subtypeId       String?  @map("subtype_id")
+  toDepartmentId  String?  @map("to_department_id")
+  priority        TicketPriority @default(NORMAL)
+  isGlobal        Boolean  @default(false) @map("is_global")
+  departmentId    String?  @map("department_id")
+  createdById     String   @map("created_by_id")
+  usageCount      Int      @default(0) @map("usage_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  createdBy       User     @relation(fields: [createdById], references: [id])
+
+  @@map("ticket_templates")
+}
+
+// ==================== REPORT CONFIGURATION ====================
+
+model ReportConfig {
+  id              String   @id @default(cuid())
+  reportType      String   @unique @map("report_type") // daily_summary, weekly_summary, sla_breach, overdue_alert, agent_performance
+  name            String
+  description     String?
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  deliveryEmail   Boolean  @default(false) @map("delivery_email")
+  deliveryApp     Boolean  @default(true) @map("delivery_app")
+  schedule        String?  // cron expression for scheduled reports
+  recipients      String[] @default([]) // 'dept_heads', 'admins', or specific user IDs
+  lastRunAt       DateTime? @map("last_run_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("report_configs")
+}
+
+model ReportSnapshot {
+  id              String   @id @default(cuid())
+  reportType      String   @map("report_type")
+  title           String
+  htmlContent     String   @map("html_content")
+  data            Json?    // structured data for in-app rendering
+  generatedFor    String?  @map("generated_for") // userId or 'all'
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([reportType, createdAt])
+  @@map("report_snapshots")
 }

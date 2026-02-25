@@ -186,6 +186,19 @@ class ApiClient {
   getTimeline(ticketId: string) { return this.get<any[]>(`/tickets/${ticketId}/timeline`); }
   // Bulk actions
   bulkUpdateTickets(data: { ticketIds: string[]; action: string; value?: string }) { return this.post<any>('/tickets/bulk/update', data); }
+  mergeTickets(targetId: string, sourceIds: string[]) { return this.post<any>(`/tickets/${targetId}/merge`, { sourceIds }); }
+  // Ticket templates
+  getTicketTemplates() { return this.get<any[]>('/ticket-templates'); }
+  createTicketTemplate(data: any) { return this.post<any>('/ticket-templates', data); }
+  updateTicketTemplate(id: string, data: any) { return this.put<any>(`/ticket-templates/${id}`, data); }
+  deleteTicketTemplate(id: string) { return this.delete<any>(`/ticket-templates/${id}`); }
+  useTicketTemplate(id: string) { return this.post<any>(`/ticket-templates/${id}/use`); }
+  // Reports
+  getReportConfigs() { return this.get<any[]>('/reports/configs'); }
+  updateReportConfig(id: string, data: any) { return this.put<any>(`/reports/configs/${id}`, data); }
+  getReportSnapshots(type?: string) { return this.get<any[]>(`/reports/snapshots${type ? `?type=${type}` : ''}`); }
+  getReportSnapshot(id: string) { return this.get<any>(`/reports/snapshots/${id}`); }
+  generateReport(type: string) { return this.post<any>(`/reports/generate?type=${type}`); }
   exportAnalytics(params?: any) { return this.get<any>(`/analytics/export?${new URLSearchParams(params || {})}`); }
 
   // Search

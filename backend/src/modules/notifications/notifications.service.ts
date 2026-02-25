@@ -1,12 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { EventsGateway } from '../gateway/events.gateway';
 
 @Injectable()
 export class NotificationsService {
   constructor(
     private prisma: PrismaService,
     private mail: MailService,
+    private gateway: EventsGateway,
   ) { }
 
   async getForUser(userId: string, params: { unreadOnly?: boolean; page?: number; limit?: number }) {
@@ -95,9 +97,11 @@ export class NotificationsService {
   }
 
   async create(userId: string, type: string, title: string, content: string, data?: any) {
-    return this.prisma.notification.create({
+    const notif = await this.prisma.notification.create({
       data: { userId, type, title, content, data },
     });
+    this.gateway.newNotification(userId, notif);
+    return notif;
   }
 
   private async isEventEnabled(eventType: string): Promise<{ enabled: boolean; channels: string[] }> {
@@ -185,13 +189,22 @@ export class NotificationsService {
     const { enabled, channels } = await this.isEventEnabled('STATUS_CHANGED');
     if (!enabled) return;
     const watchers = await this.prisma.ticketWatcher.findMany({ where: { ticketId: ticket.id } });
-    for (const w of watchers) {
-      await this.create(w.userId, 'STATUS_CHANGED',
+    const notifiedIds = new Set<string>();
+
+    // Collect all users who should be notified: watchers + assignee + creator
+    const recipients: string[] = watchers.map((w: any) => w.userId);
+    if (ticket.assignedToId) recipients.push(ticket.assignedToId);
+    if (ticket.createdById) recipients.push(ticket.createdById);
+
+    for (const userId of recipients) {
+      if (notifiedIds.has(userId)) continue;
+      notifiedIds.add(userId);
+      await this.create(userId, 'STATUS_CHANGED',
         `Ticket ${ticket.ticketNumber} status changed`,
         `Status changed from ${oldStatus} to ${newStatus}`,
         { ticketId: ticket.id, ticketNumber: ticket.ticketNumber, oldStatus, newStatus });
       if (channels.includes('email')) {
-        const email = await this.getUserEmail(w.userId);
+        const email = await this.getUserEmail(userId);
         if (email) this.mail.sendStatusChanged(email, ticket, oldStatus, newStatus).catch(() => { });
       }
     }
@@ -201,16 +214,24 @@ export class NotificationsService {
     const { enabled, channels } = await this.isEventEnabled('NEW_MESSAGE');
     if (!enabled) return;
     const watchers = await this.prisma.ticketWatcher.findMany({ where: { ticketId: ticket.id } });
-    for (const w of watchers) {
-      if (w.userId !== sender.id) {
-        await this.create(w.userId, 'NEW_MESSAGE',
-          `New reply on ${ticket.ticketNumber}`,
-          `${sender.firstName} ${sender.lastName} replied`,
-          { ticketId: ticket.id, ticketNumber: ticket.ticketNumber, messageId: message.id });
-        if (channels.includes('email')) {
-          const email = await this.getUserEmail(w.userId);
-          if (email) this.mail.sendNewMessage(email, ticket, `${sender.firstName} ${sender.lastName}`).catch(() => { });
-        }
+    const notifiedIds = new Set<string>();
+    notifiedIds.add(sender.id); // Don't notify the sender
+
+    // Collect all: watchers + assignee + creator
+    const recipients: string[] = watchers.map((w: any) => w.userId);
+    if (ticket.assignedToId) recipients.push(ticket.assignedToId);
+    if (ticket.createdById) recipients.push(ticket.createdById);
+
+    for (const userId of recipients) {
+      if (notifiedIds.has(userId)) continue;
+      notifiedIds.add(userId);
+      await this.create(userId, 'NEW_MESSAGE',
+        `New reply on ${ticket.ticketNumber}`,
+        `${sender.firstName} ${sender.lastName} replied`,
+        { ticketId: ticket.id, ticketNumber: ticket.ticketNumber, messageId: message.id });
+      if (channels.includes('email')) {
+        const email = await this.getUserEmail(userId);
+        if (email) this.mail.sendNewMessage(email, ticket, `${sender.firstName} ${sender.lastName}`).catch(() => { });
       }
     }
     // Handle mentions

@@ -5,10 +5,11 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/notifications';
+import { useSocketEvent } from '@/hooks/useSocket';
 import {
   Ticket, Clock, AlertTriangle, CheckCircle2, ArrowUpRight, Loader2,
   Eye, Bell, Building2, User, UserCheck, Inbox, X, TrendingUp, TrendingDown,
-  Timer, ShieldCheck, BarChart3, Users, Activity, Minus,
+  Timer, ShieldCheck, BarChart3, Users, Activity, Minus, Mail,
 } from 'lucide-react';
 
 const statusColors: Record<string, string> = {
@@ -277,7 +278,12 @@ export default function DashboardPage() {
   const [kpiLabel, setKpiLabel] = useState('');
   const [kpiType, setKpiType] = useState('');
 
-  useEffect(() => { api.getDashboard().then(setData).finally(() => setLoading(false)); fetchUnreadTicketIds(); }, []);
+  const refreshDashboard = () => { api.getDashboard().then(setData); };
+  useEffect(() => { refreshDashboard(); setLoading(false); fetchUnreadTicketIds(); }, []);
+
+  // Real-time: refresh dashboard KPIs when tickets change
+  useSocketEvent('tickets:refresh', refreshDashboard);
+  useSocketEvent('ticket:created', refreshDashboard);
 
   if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-primary" size={24} /></div>;
 
@@ -288,9 +294,23 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Welcome back, {user?.firstName}</h1>
-        <p className="text-muted-foreground text-sm mt-1">Here&apos;s what&apos;s happening in your workspace</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Welcome back, {user?.firstName}</h1>
+          <p className="text-muted-foreground text-sm mt-1">Here&apos;s what&apos;s happening in your workspace</p>
+        </div>
+        {hasDeptView && (
+          <div className="flex gap-2">
+            <button onClick={async () => { try { await api.generateReport('daily_summary'); alert('Daily report generated! View it in Reports page.'); } catch (e: any) { alert(e.message); } }}
+              className="text-[11px] px-3 py-1.5 rounded-lg border border-border hover:bg-accent text-muted-foreground flex items-center gap-1.5">
+              <Mail size={12} /> Daily Report
+            </button>
+            <button onClick={async () => { try { await api.generateReport('weekly_summary'); alert('Weekly report generated! View it in Reports page.'); } catch (e: any) { alert(e.message); } }}
+              className="text-[11px] px-3 py-1.5 rounded-lg border border-border hover:bg-accent text-muted-foreground flex items-center gap-1.5">
+              <Mail size={12} /> Weekly Report
+            </button>
+          </div>
+        )}
       </div>
 
       {hasDeptView && (

@@ -1,0 +1,11 @@
+import { Module } from '@nestjs/common';
+import { ScheduledReportsService } from './scheduled-reports.service';
+import { ScheduledReportsController } from './scheduled-reports.controller';
+import { MailModule } from '../mail/mail.module';
+
+@Module({
+  imports: [MailModule],
+  controllers: [ScheduledReportsController],
+  providers: [ScheduledReportsService],
+})
+export class ScheduledReportsModule { }

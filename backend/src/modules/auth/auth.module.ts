@@ -11,13 +11,15 @@ import { PermissionsGuard } from './guards/permissions.guard';
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
-    JwtModule.register({
-      secret: process.env.JWT_SECRET || 'loop-jwt-secret-dev',
-      signOptions: { expiresIn: process.env.JWT_EXPIRATION || '15m' },
+    JwtModule.registerAsync({
+      useFactory: () => ({
+        secret: process.env.JWT_SECRET || 'loop-jwt-secret-dev',
+        signOptions: { expiresIn: process.env.JWT_EXPIRATION || '15m' },
+      }),
     }),
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, JwtAuthGuard, RolesGuard, PermissionsGuard],
   exports: [AuthService, JwtAuthGuard, RolesGuard, PermissionsGuard],
 })
-export class AuthModule {}
+export class AuthModule { }

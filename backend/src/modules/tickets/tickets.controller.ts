@@ -13,7 +13,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 @Controller('tickets')
 @UseGuards(JwtAuthGuard)
 export class TicketsController {
-  constructor(private service: TicketsService) {}
+  constructor(private service: TicketsService) { }
 
   @Get()
   findAll(@CurrentUser() user: any, @Query() query: any) {
@@ -121,5 +121,11 @@ export class TicketsController {
   @Post('bulk/update')
   bulkUpdate(@CurrentUser() user: any, @Body() body: { ticketIds: string[]; action: string; value?: string }) {
     return this.service.bulkUpdate(user, body);
+  }
+
+  // Merge tickets
+  @Post(':id/merge')
+  mergeTickets(@Param('id') id: string, @CurrentUser() user: any, @Body() body: { sourceIds: string[] }) {
+    return this.service.mergeTickets(id, body.sourceIds, user);
   }
 }

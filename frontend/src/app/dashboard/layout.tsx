@@ -5,9 +5,11 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore, requestNotificationPermission } from '@/stores/notifications';
+import { useSocket } from '@/hooks/useSocket';
 import { api } from '@/lib/api';
 import {
   LayoutDashboard, Ticket, Users, Building2, BarChart3, Settings, FileText, Shield,
+  ClipboardList,
   Bell, Search, LogOut, Menu, Moon, Sun, Plus, Check, CheckCheck, X, ExternalLink, Truck,
 } from 'lucide-react';
 
@@ -185,6 +187,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [notifOpen, setNotifOpen] = useState(false);
   const branding = useBranding();
 
+  // Initialize WebSocket connection
+  useSocket();
+
   useEffect(() => { loadUser(); requestNotificationPermission(); }, [loadUser]);
   useEffect(() => {
     if (!isLoading && !isAuthenticated) router.push('/auth');
@@ -195,12 +200,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       fetchNotifications();
       fetchUnreadTicketIds();
     }
+    // Reduced polling since WebSocket handles real-time updates now
     const interval = setInterval(() => {
       if (isAuthenticated) {
         fetchNotifications();
         fetchUnreadTicketIds();
       }
-    }, 30000);
+    }, 120000); // 2 minutes fallback instead of 30s
     return () => clearInterval(interval);
   }, [isAuthenticated, fetchNotifications, fetchUnreadTicketIds]);
 
@@ -249,6 +255,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     ...(hp('analytics.view') || useAuthStore.getState().isDeptHead() ? [
       { href: '/dashboard/analytics', icon: BarChart3, label: 'Analytics' },
       { href: '/dashboard/team-performance', icon: Users, label: 'Team Performance' },
+      { href: '/dashboard/reports', icon: ClipboardList, label: 'Reports' },
     ] : []),
     ...(hp('audit.view') ? [
       { href: '/dashboard/audit', icon: Shield, label: 'Audit Log' },

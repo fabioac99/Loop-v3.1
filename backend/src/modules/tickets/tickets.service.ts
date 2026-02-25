@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { FilesService } from '../files/files.service';
+import { EventsGateway } from '../gateway/events.gateway';
 import { TicketStatus, TicketPriority } from '@prisma/client';
 import { addWorkHours, parseWorkHoursFromSettings } from '../../common/utils/sla-calculator';
 
@@ -15,6 +16,7 @@ export class TicketsService {
     private prisma: PrismaService,
     private notifications: NotificationsService,
     private filesService: FilesService,
+    private gateway: EventsGateway,
   ) { }
 
   private async checkAccess(ticket: any, user: any) {
@@ -264,6 +266,15 @@ export class TicketsService {
 
     await this.prisma.ticketWatcher.create({ data: { ticketId: ticket.id, userId: user.id } });
 
+    // Auto-add assigned user as watcher
+    if (data.assignedToId && data.assignedToId !== user.id) {
+      await this.prisma.ticketWatcher.upsert({
+        where: { ticketId_userId: { ticketId: ticket.id, userId: data.assignedToId } },
+        create: { ticketId: ticket.id, userId: data.assignedToId },
+        update: {},
+      });
+    }
+
     // Add additional watchers (CC)
     if (data.watcherIds?.length) {
       for (const watcherId of data.watcherIds) {
@@ -288,6 +299,7 @@ export class TicketsService {
     // Only notify if not a draft
     if (!data.isDraft) {
       await this.notifications.notifyTicketCreated(ticket);
+      this.gateway.ticketCreated(ticket);
     }
     return ticket;
   }
@@ -326,11 +338,20 @@ export class TicketsService {
     if (data.status && data.status !== ticket.status) {
       await this.prisma.auditLog.create({ data: { action: 'TICKET_STATUS_CHANGED', entityType: 'ticket', entityId: id, userId: user.id, metadata: { from: ticket.status, to: data.status } } });
       await this.notifications.notifyStatusChanged(updated, ticket.status, data.status);
+      this.gateway.ticketStatusChanged(id, ticket.status, data.status);
     }
     if (data.assignedToId && data.assignedToId !== ticket.assignedToId) {
+      // Auto-add assigned user as watcher so they receive all future notifications
+      await this.prisma.ticketWatcher.upsert({
+        where: { ticketId_userId: { ticketId: id, userId: data.assignedToId } },
+        create: { ticketId: id, userId: data.assignedToId },
+        update: {},
+      });
       await this.prisma.auditLog.create({ data: { action: 'TICKET_ASSIGNED', entityType: 'ticket', entityId: id, userId: user.id, metadata: { assignedToId: data.assignedToId } } });
       await this.notifications.notifyTicketAssigned(updated);
+      this.gateway.ticketAssigned(updated, data.assignedToId);
     }
+    if (changes.length) this.gateway.ticketUpdated(id, changes.map(c => c.field));
     return updated;
   }
 
@@ -352,6 +373,7 @@ export class TicketsService {
 
     await this.prisma.ticket.update({ where: { id: ticketId }, data: { updatedAt: new Date() } });
     await this.notifications.notifyNewMessage(ticket, message, user);
+    this.gateway.newMessage(ticketId, message);
 
     // Re-fetch with linked attachments
     return this.prisma.message.findUnique({
@@ -437,6 +459,7 @@ export class TicketsService {
     const updated = await this.prisma.ticket.update({ where: { id: ticketId }, data: updateData });
     await this.prisma.ticketHistory.create({ data: { ticketId, field: 'action', newValue: action, changedById: user.id } });
     await this.prisma.auditLog.create({ data: { action: 'TICKET_STATUS_CHANGED', entityType: 'ticket', entityId: ticketId, userId: user.id, metadata: { action, ...updateData } } });
+    if (updateData.status) this.gateway.ticketStatusChanged(ticketId, ticket.status, updateData.status);
     return updated;
   }
 
@@ -909,5 +932,96 @@ export class TicketsService {
     }
 
     return { updated: results.length, ticketIds: results };
+  }
+
+  // ==================== TICKET MERGING ====================
+
+  async mergeTickets(targetId: string, sourceIds: string[], user: any) {
+    const target = await this.prisma.ticket.findUnique({
+      where: { id: targetId },
+      include: { messages: true },
+    });
+    if (!target) throw new NotFoundException('Target ticket not found');
+
+    const sources = await this.prisma.ticket.findMany({
+      where: { id: { in: sourceIds } },
+      include: {
+        messages: { include: { attachments: true } },
+        internalNotes: true,
+        timeEntries: true,
+        watchers: true,
+        attachments: true,
+      },
+    });
+
+    if (sources.length === 0) throw new NotFoundException('No source tickets found');
+
+    for (const source of sources) {
+      // Move messages to target ticket
+      await this.prisma.message.updateMany({
+        where: { ticketId: source.id },
+        data: { ticketId: targetId },
+      });
+
+      // Move internal notes
+      await this.prisma.internalNote.updateMany({
+        where: { ticketId: source.id },
+        data: { ticketId: targetId },
+      });
+
+      // Move time entries
+      await this.prisma.timeEntry.updateMany({
+        where: { ticketId: source.id },
+        data: { ticketId: targetId },
+      });
+
+      // Move attachments
+      await this.prisma.attachment.updateMany({
+        where: { ticketId: source.id },
+        data: { ticketId: targetId },
+      });
+
+      // Add watchers from source (skip dupes)
+      for (const w of source.watchers) {
+        try {
+          await this.prisma.ticketWatcher.create({
+            data: { ticketId: targetId, userId: w.userId },
+          });
+        } catch (e) { /* duplicate, skip */ }
+      }
+
+      // Log merge in history
+      await this.prisma.ticketHistory.create({
+        data: {
+          ticketId: targetId,
+          field: 'merged',
+          oldValue: source.ticketNumber,
+          newValue: `Merged from ${source.ticketNumber}: ${source.title}`,
+          changedById: user.id,
+        },
+      });
+
+      // Close the source ticket with merge note
+      await this.prisma.ticket.update({
+        where: { id: source.id },
+        data: {
+          status: 'CLOSED' as any,
+          closedAt: new Date(),
+        },
+      });
+
+      // Add a note on source pointing to target
+      await this.prisma.ticketHistory.create({
+        data: {
+          ticketId: source.id,
+          field: 'merged_into',
+          oldValue: source.ticketNumber,
+          newValue: `Merged into ${target.ticketNumber}`,
+          changedById: user.id,
+        },
+      });
+    }
+
+    return this.findById(targetId, user);
   }
 }

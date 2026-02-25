@@ -1,0 +1,2592 @@
+--
+-- PostgreSQL database dump
+--
+
+\restrict YCVdkzBtjk3BELz4j7o6yLTETW3aWGXO3NEoqL2xT9R3hZJkLlQRqO5qy4kwEik
+
+-- Dumped from database version 16.11
+-- Dumped by pg_dump version 17.8 (Debian 17.8-0+deb13u1)
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: public; Type: SCHEMA; Schema: -; Owner: loop_user
+--
+
+-- *not* creating schema, since initdb creates it
+
+
+ALTER SCHEMA public OWNER TO loop_user;
+
+--
+-- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: loop_user
+--
+
+COMMENT ON SCHEMA public IS '';
+
+
+--
+-- Name: AuditAction; Type: TYPE; Schema: public; Owner: loop_user
+--
+
+CREATE TYPE public."AuditAction" AS ENUM (
+    'TICKET_CREATED',
+    'TICKET_UPDATED',
+    'TICKET_STATUS_CHANGED',
+    'TICKET_PRIORITY_CHANGED',
+    'TICKET_ASSIGNED',
+    'TICKET_CLOSED',
+    'TICKET_REOPENED',
+    'TICKET_DUPLICATED',
+    'MESSAGE_CREATED',
+    'MESSAGE_EDITED',
+    'MESSAGE_DELETED',
+    'USER_LOGIN',
+    'USER_LOGOUT',
+    'USER_CREATED',
+    'USER_UPDATED',
+    'USER_DELETED',
+    'DEPARTMENT_CREATED',
+    'DEPARTMENT_UPDATED',
+    'DEPARTMENT_DELETED',
+    'FORM_SCHEMA_CREATED',
+    'FORM_SCHEMA_UPDATED',
+    'SETTINGS_UPDATED',
+    'FILE_UPLOADED',
+    'FILE_DELETED',
+    'NOTIFICATION_SENT',
+    'SLA_BREACH',
+    'TICKET_DELETED',
+    'TICKET_FORWARDED'
+);
+
+
+ALTER TYPE public."AuditAction" OWNER TO loop_user;
+
+--
+-- Name: DepartmentRole; Type: TYPE; Schema: public; Owner: loop_user
+--
+
+CREATE TYPE public."DepartmentRole" AS ENUM (
+    'DEPARTMENT_USER',
+    'DEPARTMENT_HEAD'
+);
+
+
+ALTER TYPE public."DepartmentRole" OWNER TO loop_user;
+
+--
+-- Name: FieldType; Type: TYPE; Schema: public; Owner: loop_user
+--
+
+CREATE TYPE public."FieldType" AS ENUM (
+    'TEXT',
+    'TEXTAREA',
+    'NUMBER',
+    'SELECT',
+    'MULTI_SELECT',
+    'USER_SELECTOR',
+    'DEPARTMENT_SELECTOR',
+    'DATE',
+    'DATETIME',
+    'FILE_UPLOAD',
+    'IMAGE_UPLOAD',
+    'RICH_TEXT',
+    'CHECKBOX',
+    'RADIO_GROUP',
+    'ENTITY_REFERENCE'
+);
+
+
+ALTER TYPE public."FieldType" OWNER TO loop_user;
+
+--
+-- Name: GlobalRole; Type: TYPE; Schema: public; Owner: loop_user
+--
+
+CREATE TYPE public."GlobalRole" AS ENUM (
+    'GLOBAL_ADMIN',
+    'USER'
+);
+
+
+ALTER TYPE public."GlobalRole" OWNER TO loop_user;
+
+--
+-- Name: NotificationChannel; Type: TYPE; Schema: public; Owner: loop_user
+--
+
+CREATE TYPE public."NotificationChannel" AS ENUM (
+    'IN_APP',
+    'EMAIL',
+    'PUSH'
+);
+
+
+ALTER TYPE public."NotificationChannel" OWNER TO loop_user;
+
+--
+-- Name: NotificationFrequency; Type: TYPE; Schema: public; Owner: loop_user
+--
+
+CREATE TYPE public."NotificationFrequency" AS ENUM (
+    'IMMEDIATE',
+    'DAILY_DIGEST',
+    'WEEKLY_DIGEST',
+    'DISABLED'
+);
+
+
+ALTER TYPE public."NotificationFrequency" OWNER TO loop_user;
+
+--
+-- Name: TicketPriority; Type: TYPE; Schema: public; Owner: loop_user
+--
+
+CREATE TYPE public."TicketPriority" AS ENUM (
+    'LOW',
+    'NORMAL',
+    'HIGH',
+    'URGENT'
+);
+
+
+ALTER TYPE public."TicketPriority" OWNER TO loop_user;
+
+--
+-- Name: TicketStatus; Type: TYPE; Schema: public; Owner: loop_user
+--
+
+CREATE TYPE public."TicketStatus" AS ENUM (
+    'DRAFT',
+    'OPEN',
+    'IN_PROGRESS',
+    'WAITING_REPLY',
+    'APPROVED',
+    'REJECTED',
+    'CLOSED'
+);
+
+
+ALTER TYPE public."TicketStatus" OWNER TO loop_user;
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: _prisma_migrations; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public._prisma_migrations (
+    id character varying(36) NOT NULL,
+    checksum character varying(64) NOT NULL,
+    finished_at timestamp with time zone,
+    migration_name character varying(255) NOT NULL,
+    logs text,
+    rolled_back_at timestamp with time zone,
+    started_at timestamp with time zone DEFAULT now() NOT NULL,
+    applied_steps_count integer DEFAULT 0 NOT NULL
+);
+
+
+ALTER TABLE public._prisma_migrations OWNER TO loop_user;
+
+--
+-- Name: attachments; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.attachments (
+    id text NOT NULL,
+    filename text NOT NULL,
+    original_name text NOT NULL,
+    mime_type text NOT NULL,
+    size integer NOT NULL,
+    path text NOT NULL,
+    ticket_id text,
+    message_id text,
+    uploaded_by_id text NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+ALTER TABLE public.attachments OWNER TO loop_user;
+
+--
+-- Name: audit_logs; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.audit_logs (
+    id text NOT NULL,
+    action public."AuditAction" NOT NULL,
+    entity_type text NOT NULL,
+    entity_id text,
+    user_id text,
+    metadata jsonb,
+    ip_address text,
+    user_agent text,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+ALTER TABLE public.audit_logs OWNER TO loop_user;
+
+--
+-- Name: canned_responses; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.canned_responses (
+    id text DEFAULT (gen_random_uuid())::text NOT NULL,
+    title text NOT NULL,
+    content text NOT NULL,
+    category text,
+    shortcut text,
+    department_id text,
+    created_by_id text NOT NULL,
+    is_global boolean DEFAULT false NOT NULL,
+    usage_count integer DEFAULT 0 NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+ALTER TABLE public.canned_responses OWNER TO loop_user;
+
+--
+-- Name: clients; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.clients (
+    id text NOT NULL,
+    name text NOT NULL,
+    code text,
+    email text,
+    phone text,
+    address text,
+    tax_id text,
+    notes text,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp(3) without time zone NOT NULL
+);
+
+
+ALTER TABLE public.clients OWNER TO loop_user;
+
+--
+-- Name: custom_priorities; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.custom_priorities (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    label text NOT NULL,
+    color text DEFAULT '#6366f1'::text NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    sla_response_hours integer DEFAULT 24 NOT NULL,
+    sla_resolution_hours integer DEFAULT 72 NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+ALTER TABLE public.custom_priorities OWNER TO loop_user;
+
+--
+-- Name: custom_statuses; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.custom_statuses (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    label text NOT NULL,
+    color text DEFAULT '#6366f1'::text NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    is_closed_state boolean DEFAULT false NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+ALTER TABLE public.custom_statuses OWNER TO loop_user;
+
+--
+-- Name: departments; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.departments (
+    id text NOT NULL,
+    name text NOT NULL,
+    slug text NOT NULL,
+    description text,
+    color text DEFAULT '#6366f1'::text NOT NULL,
+    icon text,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp(3) without time zone NOT NULL
+);
+
+
+ALTER TABLE public.departments OWNER TO loop_user;
+
+--
+-- Name: form_schemas; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.form_schemas (
+    id text NOT NULL,
+    name text NOT NULL,
+    description text,
+    version integer DEFAULT 1 NOT NULL,
+    schema jsonb NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp(3) without time zone NOT NULL
+);
+
+
+ALTER TABLE public.form_schemas OWNER TO loop_user;
+
+--
+-- Name: form_submissions; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.form_submissions (
+    id text NOT NULL,
+    form_schema_id text NOT NULL,
+    ticket_id text NOT NULL,
+    data jsonb NOT NULL,
+    schema_version integer DEFAULT 1 NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp(3) without time zone NOT NULL
+);
+
+
+ALTER TABLE public.form_submissions OWNER TO loop_user;
+
+--
+-- Name: internal_notes; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.internal_notes (
+    id text NOT NULL,
+    ticket_id text NOT NULL,
+    author_id text NOT NULL,
+    content text NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp(3) without time zone NOT NULL
+);
+
+
+ALTER TABLE public.internal_notes OWNER TO loop_user;
+
+--
+-- Name: messages; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.messages (
+    id text NOT NULL,
+    ticket_id text NOT NULL,
+    author_id text NOT NULL,
+    content text NOT NULL,
+    mentions text[] DEFAULT ARRAY[]::text[],
+    is_edited boolean DEFAULT false NOT NULL,
+    is_deleted boolean DEFAULT false NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp(3) without time zone NOT NULL
+);
+
+
+ALTER TABLE public.messages OWNER TO loop_user;
+
+--
+-- Name: notification_policies; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.notification_policies (
+    id text NOT NULL,
+    department_id text,
+    role public."GlobalRole",
+    event_type text NOT NULL,
+    channel public."NotificationChannel" NOT NULL,
+    is_enabled boolean DEFAULT true NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp(3) without time zone NOT NULL
+);
+
+
+ALTER TABLE public.notification_policies OWNER TO loop_user;
+
+--
+-- Name: notification_preferences; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.notification_preferences (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    event_type text NOT NULL,
+    label text NOT NULL,
+    description text,
+    enabled boolean DEFAULT true NOT NULL,
+    channels jsonb DEFAULT '["in_app"]'::jsonb NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+ALTER TABLE public.notification_preferences OWNER TO loop_user;
+
+--
+-- Name: notification_rules; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.notification_rules (
+    id text NOT NULL,
+    name text NOT NULL,
+    description text,
+    condition jsonb NOT NULL,
+    action jsonb NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp(3) without time zone NOT NULL
+);
+
+
+ALTER TABLE public.notification_rules OWNER TO loop_user;
+
+--
+-- Name: notifications; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.notifications (
+    id text NOT NULL,
+    user_id text NOT NULL,
+    type text NOT NULL,
+    title text NOT NULL,
+    content text NOT NULL,
+    data jsonb,
+    is_read boolean DEFAULT false NOT NULL,
+    read_at timestamp(3) without time zone,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+ALTER TABLE public.notifications OWNER TO loop_user;
+
+--
+-- Name: password_resets; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.password_resets (
+    id text NOT NULL,
+    token text NOT NULL,
+    user_id text NOT NULL,
+    expires_at timestamp(3) without time zone NOT NULL,
+    used_at timestamp(3) without time zone,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+ALTER TABLE public.password_resets OWNER TO loop_user;
+
+--
+-- Name: permissions; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.permissions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    label text NOT NULL,
+    description text,
+    category text DEFAULT 'general'::text NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+ALTER TABLE public.permissions OWNER TO loop_user;
+
+--
+-- Name: refresh_tokens; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.refresh_tokens (
+    id text NOT NULL,
+    token text NOT NULL,
+    user_id text NOT NULL,
+    expires_at timestamp(3) without time zone NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    revoked_at timestamp(3) without time zone
+);
+
+
+ALTER TABLE public.refresh_tokens OWNER TO loop_user;
+
+--
+-- Name: request_categories; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.request_categories (
+    id text NOT NULL,
+    name text NOT NULL,
+    slug text NOT NULL,
+    department_id text NOT NULL,
+    description text,
+    icon text,
+    is_active boolean DEFAULT true NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp(3) without time zone NOT NULL
+);
+
+
+ALTER TABLE public.request_categories OWNER TO loop_user;
+
+--
+-- Name: request_subtypes; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.request_subtypes (
+    id text NOT NULL,
+    name text NOT NULL,
+    slug text NOT NULL,
+    category_id text NOT NULL,
+    description text,
+    form_schema_id text,
+    default_priority public."TicketPriority" DEFAULT 'NORMAL'::public."TicketPriority" NOT NULL,
+    default_assignee_id text,
+    sla_response_hours integer,
+    sla_resolution_hours integer,
+    actions jsonb,
+    is_active boolean DEFAULT true NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp(3) without time zone NOT NULL
+);
+
+
+ALTER TABLE public.request_subtypes OWNER TO loop_user;
+
+--
+-- Name: saved_views; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.saved_views (
+    id text NOT NULL,
+    name text NOT NULL,
+    user_id text NOT NULL,
+    filters jsonb NOT NULL,
+    is_default boolean DEFAULT false NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp(3) without time zone NOT NULL
+);
+
+
+ALTER TABLE public.saved_views OWNER TO loop_user;
+
+--
+-- Name: suppliers; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.suppliers (
+    id text NOT NULL,
+    name text NOT NULL,
+    code text,
+    email text,
+    phone text,
+    address text,
+    tax_id text,
+    notes text,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp(3) without time zone NOT NULL
+);
+
+
+ALTER TABLE public.suppliers OWNER TO loop_user;
+
+--
+-- Name: system_settings; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.system_settings (
+    id text NOT NULL,
+    key text NOT NULL,
+    value jsonb NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp(3) without time zone NOT NULL
+);
+
+
+ALTER TABLE public.system_settings OWNER TO loop_user;
+
+--
+-- Name: ticket_counter; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.ticket_counter (
+    id text DEFAULT 'singleton'::text NOT NULL,
+    counter integer DEFAULT 0 NOT NULL
+);
+
+
+ALTER TABLE public.ticket_counter OWNER TO loop_user;
+
+--
+-- Name: ticket_forwards; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.ticket_forwards (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    ticket_id text NOT NULL,
+    from_user_id text NOT NULL,
+    to_user_id text NOT NULL,
+    message text,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+ALTER TABLE public.ticket_forwards OWNER TO loop_user;
+
+--
+-- Name: ticket_history; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.ticket_history (
+    id text NOT NULL,
+    ticket_id text NOT NULL,
+    field text NOT NULL,
+    old_value text,
+    new_value text,
+    changed_by_id text,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+ALTER TABLE public.ticket_history OWNER TO loop_user;
+
+--
+-- Name: ticket_watchers; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.ticket_watchers (
+    id text NOT NULL,
+    ticket_id text NOT NULL,
+    user_id text NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+ALTER TABLE public.ticket_watchers OWNER TO loop_user;
+
+--
+-- Name: tickets; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.tickets (
+    id text NOT NULL,
+    ticket_number text NOT NULL,
+    title text NOT NULL,
+    description text NOT NULL,
+    status public."TicketStatus" DEFAULT 'OPEN'::public."TicketStatus" NOT NULL,
+    priority public."TicketPriority" DEFAULT 'NORMAL'::public."TicketPriority" NOT NULL,
+    from_department_id text NOT NULL,
+    to_department_id text NOT NULL,
+    subtype_id text,
+    created_by_id text NOT NULL,
+    assigned_to_id text,
+    due_date timestamp(3) without time zone,
+    sla_response_deadline timestamp(3) without time zone,
+    sla_resolution_deadline timestamp(3) without time zone,
+    sla_response_at timestamp(3) without time zone,
+    sla_resolved_at timestamp(3) without time zone,
+    sla_paused_at timestamp(3) without time zone,
+    sla_paused_duration integer DEFAULT 0 NOT NULL,
+    tags text[] DEFAULT ARRAY[]::text[],
+    duplicate_of_id text,
+    closed_at timestamp(3) without time zone,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp(3) without time zone NOT NULL,
+    metadata jsonb,
+    is_archived boolean DEFAULT false NOT NULL,
+    archived_at timestamp(3) without time zone
+);
+
+
+ALTER TABLE public.tickets OWNER TO loop_user;
+
+--
+-- Name: time_entries; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.time_entries (
+    id text DEFAULT (gen_random_uuid())::text NOT NULL,
+    ticket_id text NOT NULL,
+    user_id text NOT NULL,
+    minutes integer NOT NULL,
+    description text,
+    date timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+ALTER TABLE public.time_entries OWNER TO loop_user;
+
+--
+-- Name: user_permissions; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.user_permissions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id text NOT NULL,
+    permission_name text NOT NULL,
+    granted_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+ALTER TABLE public.user_permissions OWNER TO loop_user;
+
+--
+-- Name: users; Type: TABLE; Schema: public; Owner: loop_user
+--
+
+CREATE TABLE public.users (
+    id text NOT NULL,
+    email text NOT NULL,
+    password text NOT NULL,
+    first_name text NOT NULL,
+    last_name text NOT NULL,
+    avatar text,
+    global_role public."GlobalRole" DEFAULT 'USER'::public."GlobalRole" NOT NULL,
+    department_id text,
+    department_role public."DepartmentRole" DEFAULT 'DEPARTMENT_USER'::public."DepartmentRole" NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    last_login_at timestamp(3) without time zone,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp(3) without time zone NOT NULL
+);
+
+
+ALTER TABLE public.users OWNER TO loop_user;
+
+--
+-- Data for Name: _prisma_migrations; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) FROM stdin;
+93c9713f-bbe6-4167-85c1-22428bc5a600	079b7317322a0d8ec082e008800751ae736fb03c3f3f05c184bc1c0582ed6e4c	2026-02-18 17:51:45.963754+00	20260218175144_add_clients_suppliers	\N	\N	2026-02-18 17:51:44.707909+00	1
+\.
+
+
+--
+-- Data for Name: attachments; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.attachments (id, filename, original_name, mime_type, size, path, ticket_id, message_id, uploaded_by_id, created_at) FROM stdin;
+cmluqpym100051ki3nz10774v	0851533a-e9fd-474c-820b-7f5dee24035e.png	logo.png	image/png	45012	uploads/0851533a-e9fd-474c-820b-7f5dee24035e.png	\N	\N	cmlsc96wv0006hir7s083phyv	2026-02-20 10:21:45.717
+cmluqqlfq000k1ki3ob89kzkx	01e5a8cd-4136-435e-930a-3ea6f98339a4.ico	favicon.ico	image/x-icon	8441	uploads/01e5a8cd-4136-435e-930a-3ea6f98339a4.ico	\N	\N	cmlsc96wv0006hir7s083phyv	2026-02-20 10:22:15.301
+cmlurh8a5000u1ki35nvhygca	ed367926-a537-449f-ac1a-d5ba5f6b4400.png	logo_light.png	image/png	18704	uploads/ed367926-a537-449f-ac1a-d5ba5f6b4400.png	\N	\N	cmlsc96wv0006hir7s083phyv	2026-02-20 10:42:57.966
+\.
+
+
+--
+-- Data for Name: audit_logs; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.audit_logs (id, action, entity_type, entity_id, user_id, metadata, ip_address, user_agent, created_at) FROM stdin;
+cmlsc9ybj000hqibndzj5v9xk	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-18 18:01:51.871
+cmlscfjxx000lqibnjjtpz5ms	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-18 18:06:13.173
+cmlscftqb000nqibn5vyrydy7	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-18 18:06:25.86
+cmlsd9so50001gk2i5f8xlznb	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-18 18:29:44.166
+cmlsdjrk2000ggk2iaw0un9kg	TICKET_CREATED	ticket	cmlsdjrh90008gk2iiyiv3uxd	cmlsc96wv0006hir7s083phyv	{"title": "pedido acessorios", "ticketNumber": "LOOP-000001"}	\N	\N	2026-02-18 18:37:29.282
+cmlsdkfbx000mgk2i1xkfgka6	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-18 18:38:00.093
+cmlsdl33i000ogk2invksh950	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-18 18:38:30.894
+cmlsdljup000sgk2i91k1my0j	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-18 18:38:52.609
+cmlsdlp7c000ugk2igdpl97qn	USER_LOGIN	user	cmlsc97mq000chir7kza21yz0	cmlsc97mq000chir7kza21yz0	\N	\N	\N	2026-02-18 18:38:59.544
+cmlsdm3xx000ygk2ing9pfcd8	USER_LOGOUT	user	cmlsc97mq000chir7kza21yz0	cmlsc97mq000chir7kza21yz0	\N	\N	\N	2026-02-18 18:39:18.645
+cmlsdmoo50010gk2itk73wqbn	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-18 18:39:45.51
+cmlsdmvfq0014gk2id78a9zmq	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-18 18:39:54.279
+cmlsdn0md0016gk2i8hqofg6v	USER_LOGIN	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-18 18:40:00.997
+cmlsdr9vf001agk2ioexazt2q	USER_LOGOUT	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-18 18:43:19.612
+cmlsdrj57001cgk2i1j8rit24	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-18 18:43:31.627
+cmlta0ee90010qtrc8iugdrhz	TICKET_CREATED	ticket	cmlta0ec1000uqtrcsuc44ugz	cmlsc96wv0006hir7s083phyv	{"title": "teste client", "ticketNumber": "LOOP-000002"}	\N	\N	2026-02-19 09:46:13.089
+cmltamsft0018qtrcmqmk02lo	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-19 10:03:37.721
+cmltamx7u001aqtrc3xk174f1	USER_LOGIN	user	cmlsc97mq000chir7kza21yz0	cmlsc97mq000chir7kza21yz0	\N	\N	\N	2026-02-19 10:03:43.914
+cmltandoo001eqtrc4f22wlyt	USER_LOGOUT	user	cmlsc97mq000chir7kza21yz0	cmlsc97mq000chir7kza21yz0	\N	\N	\N	2026-02-19 10:04:05.256
+cmltanmks001gqtrcc4uequje	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-19 10:04:16.78
+cmltao3f5001kqtrczoogzxoy	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-19 10:04:38.609
+cmltao93k001mqtrcwm0ss0ik	USER_LOGIN	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-19 10:04:45.968
+cmltc8v10000c8c8cc02z6ybd	TICKET_CREATED	ticket	cmltc8uz800068c8ctyiq61q0	cmlsc97nb000ghir7duuqmeij	{"title": "stasd", "ticketNumber": "LOOP-000003"}	\N	\N	2026-02-19 10:48:47.124
+cmltc9x6v000e8c8cbc55w3in	USER_LOGOUT	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-19 10:49:36.583
+cmltca6kw000g8c8c160g856v	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-19 10:49:48.752
+cmltcgzt9000q8c8cge1avovo	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-19 10:55:06.573
+cmltchaal000s8c8coppwfs5o	USER_LOGIN	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-19 10:55:20.157
+cmlte0noo00057ne1nbisffub	USER_LOGOUT	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-19 11:38:23.592
+cmlte129f00077ne1jgq8bhsz	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-19 11:38:42.483
+cmlte2uea000i7ne1n0y653ha	TICKET_CREATED	ticket	cmlte2ual000c7ne1nqfml943	cmlsc96wv0006hir7s083phyv	{"title": "Teste acc", "ticketNumber": "LOOP-000004"}	\N	\N	2026-02-19 11:40:05.603
+cmlte37q0000r7ne1fp36ypnr	TICKET_DUPLICATED	ticket	cmlte37pj000p7ne18pr4tyka	cmlsc96wv0006hir7s083phyv	{"originalId": "cmlte2ual000c7ne1nqfml943"}	\N	\N	2026-02-19 11:40:22.872
+cmlte3vxo000t7ne182d86riq	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-19 11:40:54.252
+cmlte408x000v7ne1nqk6v1k7	USER_LOGIN	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-19 11:40:59.841
+cmlte4f15000z7ne1nafx0cj3	USER_LOGOUT	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-19 11:41:19.001
+cmlte4r5000117ne1mw6lrdk5	USER_LOGIN	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-19 11:41:34.687
+cmltedvtw00014uhqqszgyhw6	USER_LOGOUT	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-19 11:48:40.676
+cmltee68p00034uhqs5ifr3ba	USER_LOGIN	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-19 11:48:54.169
+cmltef5ou00074uhqapvfrs5z	USER_LOGOUT	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-19 11:49:40.11
+cmltefdhm00094uhq8fphypxh	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-19 11:49:50.218
+cmltefn68000d4uhqwdc3ijjr	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-19 11:50:02.766
+cmltefwqy000f4uhqroyvunrj	USER_LOGIN	user	cmlsc97ma0008hir7on2fgmgd	cmlsc97ma0008hir7on2fgmgd	\N	\N	\N	2026-02-19 11:50:15.178
+cmltf1ddc0003uwnbvw41519v	USER_LOGOUT	user	cmlsc97ma0008hir7on2fgmgd	cmlsc97ma0008hir7on2fgmgd	\N	\N	\N	2026-02-19 12:06:56.496
+cmltf3xcs0005uwnbo6v9glxl	USER_LOGIN	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-19 12:08:55.708
+cmltfcerb0001mi0dfyh20aft	USER_LOGOUT	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-19 12:15:31.511
+cmltffb7n0003mi0djjpe0k7g	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-19 12:17:46.883
+cmltfnpri0007mi0dlhit8hbz	USER_LOGIN	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-19 12:24:18.99
+cmltfr57a000kmi0d7mas0989	TICKET_CREATED	ticket	cmltfr55f000emi0d8htpu6fv	cmlsc97nb000ghir7duuqmeij	{"title": "teste", "ticketNumber": "LOOP-000006"}	\N	\N	2026-02-19 12:26:58.966
+cmltj1odk0014mi0dt78r0y89	USER_LOGIN	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-19 13:59:09.224
+cmltkierq0001uwhpokg5t5k4	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-19 14:40:09.542
+cmltlv15o0001t3sj4z0xorfq	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-19 15:17:58.044
+cmltlvjfa0003t3sj3vrfl7s3	USER_LOGIN	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-19 15:18:21.719
+cmltpak5e0001yl56fipgp8hu	USER_LOGOUT	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-19 16:54:01.345
+cmltpdi9300012z4i6s6vll88	USER_LOGIN	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-19 16:56:18.855
+cmltpeb9i00052z4iof0wmt45	USER_LOGOUT	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-19 16:56:56.454
+cmltpelkk00072z4iyjyl0xyr	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-19 16:57:09.812
+cmltqmypk000113fsthfjndyz	USER_LOGIN	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-19 17:31:39.704
+cmltqp99d000513fsbknrcoge	USER_LOGOUT	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-19 17:33:26.689
+cmltqpncp000713fsnmka2z66	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-19 17:33:44.953
+cmltqqy5o000d13fsiypzvfgk	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-19 17:34:45.612
+cmltqr57e000f13fshwqwv0ty	USER_LOGIN	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-19 17:34:54.746
+cmltrcwmv000gf703x33xlx0h	TICKET_CREATED	ticket	cmltrcwl4000af703oicl9tcd	cmltqqrc6000b13fsnd6n9mnd	{"title": "resolve", "ticketNumber": "LOOP-000007"}	\N	\N	2026-02-19 17:51:50.071
+cmlupcb050001136f27i3968x	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 09:43:08.981
+cmlupdhhs0005136fppdtqx5m	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 09:44:04.048
+cmlupdyf00007136fcprgz245	USER_LOGIN	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-20 09:44:25.98
+cmlupep0l000b136f317ktu18	USER_LOGOUT	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-20 09:45:00.453
+cmlupfazn000d136fawumvo1k	USER_LOGIN	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-20 09:45:28.93
+cmluqkb4b00011ki3tbi7q8uc	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 10:17:21.995
+cmlus9yh20001p057q6bh21q7	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 11:05:18.277
+cmluszl590001zuz9j8oo6wvq	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 11:25:14.06
+cmlutodop0009zuz9ge01g5f2	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 11:44:30.793
+cmlutoqlm000bzuz9rvrs4jg5	USER_LOGIN	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-20 11:44:47.53
+cmlutp4b7000mzuz9ea4xscl2	TICKET_CREATED	ticket	cmlutp48z000gzuz9iwhbz5xy	cmltcgutd000o8c8c9tr6q3yk	{"title": "maria", "ticketNumber": "LOOP-000008"}	\N	\N	2026-02-20 11:45:05.298
+cmlutpdax000szuz9n2asyl6q	USER_LOGOUT	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-20 11:45:16.951
+cmlutq15g000uzuz94fi4qtr1	USER_LOGIN	user	cmlsc97mi000ahir7jy3l2o6q	cmlsc97mi000ahir7jy3l2o6q	\N	\N	\N	2026-02-20 11:45:47.86
+cmlutqu7u0010zuz9yhsv8bzu	USER_LOGOUT	user	cmlsc97mi000ahir7jy3l2o6q	cmlsc97mi000ahir7jy3l2o6q	\N	\N	\N	2026-02-20 11:46:25.53
+cmlutr87b0012zuz9d5cyt57w	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 11:46:43.655
+cmluu0l4c0016zuz9vfffaxq8	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 11:54:00.3
+cmluuhsw50018zuz9k68h7nv4	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 12:07:23.525
+cmluujmdr001czuz9lzhnbewh	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 12:08:48.399
+cmluujph6001gzuz90rwinehp	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 12:08:52.411
+cmluuk38q001izuz9hpwa82az	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 12:09:10.25
+cmluusc4b001mzuz95kh4arzy	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 12:15:35.003
+cmluusnfs001ozuz98ivwvm5u	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 12:15:49.673
+cmluusqjw001szuz9rvv2jiit	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 12:15:53.708
+cmluv2763001uzuz9z6ch5mf0	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 12:23:15.147
+cmlv1sjps0001130bxedm6ll2	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 15:31:42.16
+cmlv1v8n9000b130bp8muesbc	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 15:33:47.781
+cmlv1vmet000d130b5wl8tudi	USER_LOGIN	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-20 15:34:05.618
+cmlv1vtc8000h130bfuh13zep	USER_LOGIN	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-20 15:34:14.6
+cmlv1wb2i000l130biq1b3zwc	USER_LOGOUT	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-20 15:34:37.578
+cmlv1whku000n130b6gt0hvh5	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 15:34:46.014
+cmlv24uik0003y06xqwpiekwv	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 15:41:16.028
+cmlv253xt0005y06xqymrdoxf	USER_LOGIN	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-20 15:41:28.241
+cmlv25v990009y06xjywoxrnk	USER_LOGOUT	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-20 15:42:03.645
+cmlv2632b000by06x6m90lhxm	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 15:42:13.764
+cmlv2em540001358fvmce4y2f	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 15:48:51.736
+cmlv2etdq0003358fni9ucpyt	USER_LOGIN	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-20 15:49:01.118
+cmlv2f11m0007358fb5sac0fd	USER_LOGOUT	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-20 15:49:11.05
+cmlv2fep30009358fzj2okb4o	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 15:49:28.743
+cmlv31cft000h358ffkckrutt	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 16:06:32.249
+cmlv31jb4000j358fp2e9y1dy	USER_LOGIN	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-20 16:06:41.152
+cmlv31swu000n358f8o5bdng0	USER_LOGOUT	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-20 16:06:53.598
+cmlv321i2000p358f3h7u8z53	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 16:07:04.731
+cmlv33bcc000t358fmtg5hc0u	TICKET_DELETED	ticket	cmlte2ual000c7ne1nqfml943	cmlsc96wv0006hir7s083phyv	{"title": "Teste acc", "ticketNumber": "LOOP-000004"}	\N	\N	2026-02-20 16:08:04.14
+cmlv33em4000v358f0ey9yh92	TICKET_DELETED	ticket	cmlutp48z000gzuz9iwhbz5xy	cmlsc96wv0006hir7s083phyv	{"title": "maria", "ticketNumber": "LOOP-000008"}	\N	\N	2026-02-20 16:08:08.38
+cmlv33ieh000x358falon8329	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 16:08:13.289
+cmlv33ozi000z358f44fpqbth	USER_LOGIN	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-20 16:08:21.823
+cmlv33uri0013358fmvj2x2fv	USER_LOGOUT	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-20 16:08:29.31
+cmlv343da0015358fppq7mlim	USER_LOGIN	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-20 16:08:40.461
+cmlv34fgl0019358f2peeqzdo	USER_LOGOUT	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-20 16:08:56.133
+cmlv34r1b001b358f4udwh8ia	USER_LOGIN	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-20 16:09:11.135
+cmlv3502t001f358fmihvr5kc	USER_LOGOUT	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-20 16:09:22.853
+cmlv35bls001h358f16ghx96d	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 16:09:37.792
+cmlv377pm001l358fq4k7xh9f	USER_LOGIN	user	cmlsc97mq000chir7kza21yz0	cmlsc97mq000chir7kza21yz0	\N	\N	\N	2026-02-20 16:11:06.058
+cmlv7lzcx0009tl92ejj0yj7b	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 18:14:33.537
+cmlv7meoz000btl9256a8fo4r	USER_LOGIN	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-20 18:14:53.411
+cmlv7mxeh000ftl929l2zoe9s	USER_LOGOUT	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-20 18:15:17.657
+cmlv7n4eb000htl92rut1ilx6	USER_LOGIN	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-20 18:15:26.723
+cmlv7ni4r000ltl922msjlq4t	USER_LOGOUT	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-20 18:15:44.523
+cmlv7o57p000ntl92hu0fc3nr	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 18:16:14.437
+cmlv8ddso0013tl927bm327pi	USER_LOGOUT	user	cmlsc97mq000chir7kza21yz0	cmlsc97mq000chir7kza21yz0	\N	\N	\N	2026-02-20 18:35:51.96
+cmlv8drdf0015tl929fehio5g	USER_LOGIN	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-20 18:36:09.556
+cmlv8e3he0019tl9240vqmg2t	USER_LOGOUT	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-20 18:36:25.25
+cmlv8ecgh001btl92p2gxsl6n	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 18:36:36.881
+cmlv8eocu001ftl9277c50gqy	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 18:36:52.302
+cmlv8eyy2001htl92el5put1s	USER_LOGIN	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-20 18:37:06.026
+cmlv8gqko001ltl922o8xzbat	USER_LOGOUT	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-20 18:38:28.488
+cmlv8h7g1001ntl923crjqadq	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 18:38:50.353
+cmlv8oamw001rtl92gblv1dxv	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-20 18:44:21.08
+cmlv8ox8i001ttl92s03vv4rs	USER_LOGIN	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-20 18:44:50.369
+cmlv8qdej001xtl92fyeip8rk	USER_LOGOUT	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-20 18:45:57.979
+cmlv8qkfc001ztl92d6ngensn	USER_LOGIN	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-20 18:46:07.079
+cmlv8spnb0027tl92qf0gwuq8	USER_LOGOUT	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-20 18:47:47.159
+cmlv8t2s10029tl92xla5iamh	USER_LOGIN	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-20 18:48:04.177
+cmlyyalq3002rtl92pgn90t0a	USER_LOGIN	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-23 09:04:50.81
+cmlyzpo2l000sada1hxvs22zx	TICKET_CREATED	ticket	cmlyzpo06000mada1u3zyk20l	cmlsc96wv0006hir7s083phyv	{"title": "Normal", "ticketNumber": "LOOP-000009"}	\N	\N	2026-02-23 09:44:33.309
+cmlyzrici000yada1m0ku6xzn	TICKET_DELETED	ticket	cmlyzpo06000mada1u3zyk20l	cmlsc96wv0006hir7s083phyv	{"title": "Normal", "ticketNumber": "LOOP-000009"}	\N	\N	2026-02-23 09:45:59.202
+cmlyzs5qx0017ada1rj48xwhf	TICKET_CREATED	ticket	cmlyzs5pr0011ada1oq6xf5w4	cmlsc96wv0006hir7s083phyv	{"title": "Normal", "ticketNumber": "LOOP-000010"}	\N	\N	2026-02-23 09:46:29.529
+cmlyzv9am001dada1naazpzyn	TICKET_DELETED	ticket	cmlyzs5pr0011ada1oq6xf5w4	cmlsc96wv0006hir7s083phyv	{"title": "Normal", "ticketNumber": "LOOP-000010"}	\N	\N	2026-02-23 09:48:54.094
+cmlyzw044001mada153hvi0i9	TICKET_CREATED	ticket	cmlyzw00h001gada185emeji3	cmlsc96wv0006hir7s083phyv	{"title": "Low", "ticketNumber": "LOOP-000011"}	\N	\N	2026-02-23 09:49:28.852
+cmlyzwj3f0020ada13up39mqr	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-23 09:49:53.451
+cmlyzxnzr002bada1qieml294	TICKET_CREATED	ticket	cmlyzxny90025ada1f6vy2b0u	cmlsc96wv0006hir7s083phyv	{"title": "Normal", "ticketNumber": "LOOP-000012"}	\N	\N	2026-02-23 09:50:46.455
+cmlyzz549002oada1jytp4ljp	TICKET_CREATED	ticket	cmlyzz52k002iada1fp1k8qiz	cmlsc96wv0006hir7s083phyv	{"title": "hight", "ticketNumber": "LOOP-000013"}	\N	\N	2026-02-23 09:51:55.305
+cmlz0005r002zada1my2qdrqx	TICKET_CREATED	ticket	cmlz00038002tada1g4mtynn0	cmlsc96wv0006hir7s083phyv	{"title": "urgent", "ticketNumber": "LOOP-000014"}	\N	\N	2026-02-23 09:52:35.535
+cmlz02evc003fada1px55y736	TICKET_CREATED	ticket	cmlz02etz0039ada16ejowe46	cmlsc96wv0006hir7s083phyv	{"title": "draft", "ticketNumber": "LOOP-000016"}	\N	\N	2026-02-23 09:54:27.912
+cmlz02laq003iada13e1jzd59	TICKET_STATUS_CHANGED	ticket	cmlz02etz0039ada16ejowe46	cmlsc96wv0006hir7s083phyv	{"to": "OPEN", "from": "DRAFT"}	\N	\N	2026-02-23 09:54:36.242
+cmlz02mt8003nada1f74szjo7	TICKET_STATUS_CHANGED	ticket	cmlz02etz0039ada16ejowe46	cmlsc96wv0006hir7s083phyv	{"to": "DRAFT", "from": "OPEN"}	\N	\N	2026-02-23 09:54:38.204
+cmlz02q1q003sada1iei46c17	TICKET_STATUS_CHANGED	ticket	cmlz02etz0039ada16ejowe46	cmlsc96wv0006hir7s083phyv	{"to": "WAITING_REPLY", "from": "DRAFT"}	\N	\N	2026-02-23 09:54:42.398
+cmlz0gu7x0047ada1wyosd0yc	TICKET_CREATED	ticket	cmlz0gu5x0041ada1ztgz1w8d	cmlsc96wv0006hir7s083phyv	{"title": "sdfsdf", "ticketNumber": "LOOP-000017"}	\N	\N	2026-02-23 10:05:40.989
+cmlz0h20f004eada1k5clcunr	TICKET_STATUS_CHANGED	ticket	cmlz0gu5x0041ada1ztgz1w8d	cmlsc96wv0006hir7s083phyv	{"to": "WAITING_REPLY", "from": "OPEN"}	\N	\N	2026-02-23 10:05:51.087
+cmlz0h4j2004jada1x8xe2m9a	TICKET_STATUS_CHANGED	ticket	cmlz0gu5x0041ada1ztgz1w8d	cmlsc96wv0006hir7s083phyv	{"to": "IN_PROGRESS", "from": "WAITING_REPLY"}	\N	\N	2026-02-23 10:05:54.351
+cmlz3oefc000110n6r8hxe7tm	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-23 11:35:32.615
+cmlz3tj4u000610n64bsaelcm	TICKET_STATUS_CHANGED	ticket	cmlz00038002tada1g4mtynn0	cmlsc96wv0006hir7s083phyv	{"to": "CLOSED", "from": "OPEN"}	\N	\N	2026-02-23 11:39:31.999
+cmlz3v3q2000a10n6bwu8fgyi	USER_LOGIN	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-23 11:40:45.335
+cmlz3vxbd000e10n6kzixypad	USER_LOGOUT	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-23 11:41:23.689
+cmlz3wa0z000g10n6ong7s0q5	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-23 11:41:40.163
+cmlz3wrtc000k10n6gkc0w2pa	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-23 11:42:03.214
+cmlz3x0iu000m10n6detl29t8	USER_LOGIN	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-23 11:42:14.502
+cmlz3yo9o000q10n6x01frh1t	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-23 11:43:31.932
+cmlz3yvq8000s10n6jq3mtkrh	USER_LOGIN	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-23 11:43:41.6
+cmlz41cqf000w10n637453i0k	USER_LOGOUT	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-23 11:45:36.951
+cmlz41mkp000y10n60p7z2dvp	USER_LOGIN	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-23 11:45:49.705
+cmlz41t3z001210n6flwg782n	USER_LOGOUT	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-23 11:45:58.175
+cmlz426x2001410n6xblmaust	USER_LOGIN	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-23 11:46:16.07
+cmlz42ery001810n6nc6v457g	USER_LOGOUT	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-23 11:46:26.254
+cmlz439k4001a10n6ktv1aj8w	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-23 11:47:06.148
+cmlz4nzm2002k10n6wwal5qha	TICKET_CREATED	ticket	cmlz4nzj3002e10n63mvffgyw	cmlsc96wv0006hir7s083phyv	{"title": "test", "ticketNumber": "LOOP-000018"}	\N	\N	2026-02-23 12:03:13.034
+cmlz5gvl9000bowvbked8m38j	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-23 12:25:40.843
+cmlz5hegf000dowvb46bny85q	USER_LOGIN	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-23 12:26:05.293
+cmlz5i46o000howvb2e0zcn17	USER_LOGOUT	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-23 12:26:38.64
+cmlz5ibo7000jowvb506lxb1q	USER_LOGIN	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-23 12:26:48.343
+cmlz5j4cd000nowvbxsjnum5b	USER_LOGOUT	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-23 12:27:25.501
+cmlz5jdh4000towvbhheixlxo	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-23 12:27:37.336
+cmlz5krqq000xowvbb59iryk3	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-23 12:28:42.482
+cmlz5kxwc000zowvba8jjp3h9	USER_LOGIN	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-23 12:28:50.46
+cmlz9g9q70021owvb7bsjp38r	USER_LOGOUT	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-23 14:17:10.975
+cmlz9gis00023owvbpq805p7c	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-23 14:17:22.704
+cmlzceydw0001pv2muk23wrho	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-23 15:40:08.44
+cmlzcu8ll00011qkb4hxvrpb2	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-23 15:52:01.544
+cmlzdekda000h1qkbmhfxzzv1	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-23 16:07:49.916
+cmlzdyfdl000y1qkbo6v85l0v	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-23 16:23:16.569
+cmlzfwhw4001g1qkb2c2ogfcy	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-23 17:17:45.748
+cmlzfwpqe001i1qkb64jj2fd8	USER_LOGIN	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-23 17:17:55.91
+cmlzfxe43001m1qkba3gtpypw	USER_LOGOUT	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-23 17:18:27.507
+cmlzfxm5u001o1qkbkj9o48je	USER_LOGIN	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-23 17:18:37.938
+cmlzfxx3r001s1qkbx0sezz8u	USER_LOGOUT	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-23 17:18:52.119
+cmlzfy2s5001u1qkbkqoce3v7	USER_LOGIN	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-23 17:18:59.476
+cmlzgidjz00221qkbe9pp6ad5	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-23 17:34:46.559
+cmlzgvjov00019za313oqajd4	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-23 17:45:01.039
+cmlzgxdpz00059za31jkkali9	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-23 17:46:26.615
+cmlzgxq1i00079za31go310lg	USER_LOGIN	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-23 17:46:42.582
+cmlzgycg8000b9za37tunh1bp	USER_LOGOUT	user	cmlsc97nb000ghir7duuqmeij	cmlsc97nb000ghir7duuqmeij	\N	\N	\N	2026-02-23 17:47:11.625
+cmlzgymbo000d9za3xugo8oal	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-23 17:47:24.42
+cmlzh0dw9000h9za3web0sspo	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-23 17:48:46.809
+cmlzh0mkd000j9za3p112uvjm	USER_LOGIN	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-23 17:48:58.045
+cmlzh1d3i000o9za3h8wewhzj	TICKET_STATUS_CHANGED	ticket	cmlz4nzj3002e10n63mvffgyw	cmltqqrc6000b13fsnd6n9mnd	{"to": "CLOSED", "from": "OPEN"}	\N	\N	2026-02-23 17:49:32.43
+cmlzh2dpr000s9za3nuz1wtni	USER_LOGOUT	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-23 17:50:19.887
+cmlzh2lhq000u9za3cd572j4o	USER_LOGIN	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-23 17:50:29.965
+cmlzhexcg000y9za3wxyrssrq	USER_LOGOUT	user	cmltcgutd000o8c8c9tr6q3yk	cmltcgutd000o8c8c9tr6q3yk	\N	\N	\N	2026-02-23 18:00:05.2
+cmlzhfcfa00109za3xlnasp86	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-23 18:00:24.742
+cmlzhfsqz00159za30zp663j5	TICKET_STATUS_CHANGED	ticket	cmlyzz52k002iada1fp1k8qiz	cmlsc96wv0006hir7s083phyv	{"to": "CLOSED", "from": "OPEN"}	\N	\N	2026-02-23 18:00:45.898
+cmlzhg6rd001c9za3jgu71mag	TICKET_DUPLICATED	ticket	cmlzhg6pd001a9za3quwq4j2a	cmlsc96wv0006hir7s083phyv	{"originalId": "cmlz0gu5x0041ada1ztgz1w8d"}	\N	\N	2026-02-23 18:01:04.057
+cmlzhg9g2001e9za3susx4fwe	TICKET_DELETED	ticket	cmlzhg6pd001a9za3quwq4j2a	cmlsc96wv0006hir7s083phyv	{"title": "[DUP] sdfsdf", "ticketNumber": "LOOP-000019"}	\N	\N	2026-02-23 18:01:07.539
+cmm0hl1rr002c9za3v6o6dycs	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-24 10:52:37.047
+cmm0km0yg00018gmd1nilt7pj	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-24 12:17:21.495
+cmm0l3zf5000160vqdoul7pey	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-24 12:31:19.313
+cmm0pcutu001360vqycra2zeb	USER_LOGOUT	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-24 14:30:11.73
+cmm0pdfuu001560vqu2locyy8	USER_LOGIN	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-24 14:30:38.982
+cmm0pz5yj001d60vqemmcjafu	USER_LOGOUT	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-24 14:47:32.587
+cmm0pzgnq001f60vqkt261fzv	USER_LOGIN	user	cmltqqrc6000b13fsnd6n9mnd	cmltqqrc6000b13fsnd6n9mnd	\N	\N	\N	2026-02-24 14:47:46.454
+cmm0ta5kl001p60vqydqz4sah	USER_LOGIN	user	cmlsc96wv0006hir7s083phyv	cmlsc96wv0006hir7s083phyv	\N	\N	\N	2026-02-24 16:20:04.149
+cmm0tb9fy001u60vqcv89zep1	TICKET_STATUS_CHANGED	ticket	cmlz02etz0039ada16ejowe46	cmlsc96wv0006hir7s083phyv	{"to": "REJECTED", "from": "WAITING_REPLY"}	\N	\N	2026-02-24 16:20:55.822
+\.
+
+
+--
+-- Data for Name: canned_responses; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.canned_responses (id, title, content, category, shortcut, department_id, created_by_id, is_global, usage_count, created_at, updated_at) FROM stdin;
+cmm0pbko2001160vqd505tuhu	Cumprimentos	Muito obrigado desde já,\nCumprimentos.	\N	Cumprimentos	\N	cmlsc96wv0006hir7s083phyv	t	0	2026-02-24 14:29:11.907	2026-02-24 14:29:11.907
+\.
+
+
+--
+-- Data for Name: clients; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.clients (id, name, code, email, phone, address, tax_id, notes, is_active, created_at, updated_at) FROM stdin;
+f035111f-1194-428c-8691-7dfa541818de	Zara International	CLT-001	purchasing@zara.com	\N	\N	ES28050135	\N	t	2026-02-18 18:01:17.691	2026-02-18 18:01:17.691
+01be3a5e-3053-4217-b25c-f5037b27c7ad	H&M Group	CLT-002	orders@hm.com	\N	\N	SE556042720	\N	t	2026-02-18 18:01:17.701	2026-02-18 18:01:17.701
+1b7b899b-2cb3-4e05-8403-0ba0ecfce91e	Primark Stores	CLT-003	sourcing@primark.com	\N	\N	IE6345427F	\N	t	2026-02-18 18:01:17.706	2026-02-18 18:01:17.706
+00e9c3c8-07d1-40ca-8874-95401866d7e8	Mango Fashion	CLT-004	compras@mango.com	\N	\N	ESB08593896	\N	t	2026-02-18 18:01:17.712	2026-02-18 18:01:17.712
+218c22a2-06f5-4244-828a-114709a60b97	El Corte Inglés	CLT-005	moda@elcorteingles.es	\N	\N	ESA28017895	\N	t	2026-02-18 18:01:17.718	2026-02-18 18:01:17.718
+\.
+
+
+--
+-- Data for Name: custom_priorities; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.custom_priorities (id, name, label, color, sort_order, is_active, sla_response_hours, sla_resolution_hours, created_at) FROM stdin;
+779772fe-fb6b-4b0d-b07a-956f3a650e8b	LOW	Low	#71717a	0	t	16	16	2026-02-20 15:22:37.615
+59e5ebf6-ba8d-46ba-9cd2-ec3cc7623971	NORMAL	Normal	#3b82f6	1	t	8	8	2026-02-20 15:22:37.615
+04824ae0-70ec-4c32-9a18-0190b177aca4	HIGH	High	#f59e0b	2	t	4	4	2026-02-20 15:22:37.615
+bc809d01-effd-4271-9d73-63f5c15a31b7	URGENT	Urgent	#ef4444	3	t	1	2	2026-02-20 15:22:37.615
+\.
+
+
+--
+-- Data for Name: custom_statuses; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.custom_statuses (id, name, label, color, sort_order, is_active, is_closed_state, created_at) FROM stdin;
+639b3d75-cd87-4698-b159-a3005f310678	DRAFT	Draft	#71717a	0	t	f	2026-02-20 15:22:37.615
+306be008-b303-4d3e-bd06-2f9b8a197608	OPEN	Open	#3b82f6	1	t	f	2026-02-20 15:22:37.615
+7f059a36-b19e-45e2-864a-9eef315b34de	IN_PROGRESS	In Progress	#f59e0b	2	t	f	2026-02-20 15:22:37.615
+dafed2c1-b700-4974-bb68-895168032e6f	WAITING_REPLY	Waiting Reply	#a855f7	3	t	f	2026-02-20 15:22:37.615
+ef4c2784-b273-44b8-8d9b-1f48d5e8f062	CLOSED	Closed	#71717a	6	t	t	2026-02-20 15:22:37.615
+83d4e6f4-b360-4201-baf9-d2fdc4d2de31	REJECTED	Rejected	#ef4444	5	f	t	2026-02-20 15:22:37.615
+acfca3c8-d1f9-4093-84ba-69a69b57f7db	APPROVED	Approved	#10b981	4	f	f	2026-02-20 15:22:37.615
+\.
+
+
+--
+-- Data for Name: departments; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.departments (id, name, slug, description, color, icon, is_active, created_at, updated_at) FROM stdin;
+cmlsc960d0000hir76ogsrgcx	Sales	sales	Sales department	#3b82f6	\N	t	2026-02-18 18:01:15.18	2026-02-18 18:01:15.18
+cmlsc964h0002hir7vmnnolpl	DAF	daf	Finance and Accounting	#10b981	\N	t	2026-02-18 18:01:15.186	2026-02-18 18:01:15.186
+cmlsc964x0004hir7y0tosujt	Info	info	Management/Administration	#ef4444	\N	t	2026-02-18 18:01:15.186	2026-02-18 18:01:15.186
+cmlsc963p0001hir7m9cacsc4	Design	design	Design and creative	#8b5cf6	\N	t	2026-02-18 18:01:15.183	2026-02-18 18:01:15.183
+cmlsc964j0003hir7sny2507k	Accessories	accessories	Accessories and materials	#f59e0b	\N	t	2026-02-18 18:01:15.184	2026-02-18 18:01:15.184
+\.
+
+
+--
+-- Data for Name: form_schemas; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.form_schemas (id, name, description, version, schema, is_active, created_at, updated_at) FROM stdin;
+cmlsc97op000nhir7fgmkzeem	Artwork Request	\N	1	{"fields": [{"id": "reference_images", "type": "IMAGE_UPLOAD", "label": "Reference Images", "required": false}, {"id": "sizes", "type": "MULTI_SELECT", "label": "Sizes", "options": ["XS", "S", "M", "L", "XL", "XXL"], "required": true}, {"id": "materials", "type": "SELECT", "label": "Material", "options": ["Cotton", "Polyester", "Silk", "Linen", "Wool", "Denim"], "required": true}, {"id": "colors", "type": "TEXT", "label": "Color Specifications", "required": true}, {"id": "deadline_notes", "type": "TEXTAREA", "label": "Deadline Notes", "required": false}]}	t	2026-02-18 18:01:17.354	2026-02-18 18:01:17.354
+cmlsc97oy000ohir7769wtpts	Marketing Design Request	\N	1	{"fields": [{"id": "campaign_name", "type": "TEXT", "label": "Campaign Name", "required": true}, {"id": "format", "type": "SELECT", "label": "Format", "options": ["Social Media", "Print", "Web Banner", "Email", "Catalog"], "required": true}, {"id": "dimensions", "type": "TEXT", "label": "Dimensions", "required": false}, {"id": "brand_guidelines", "type": "CHECKBOX", "label": "Follow brand guidelines", "required": false, "defaultValue": true}, {"id": "references", "type": "FILE_UPLOAD", "label": "Reference Files", "required": false}]}	t	2026-02-18 18:01:17.363	2026-02-18 18:01:17.363
+cmlsc97s80013hir7x6n2msco	Credit Note Request	\N	1	{"fields": [{"id": "invoice_number", "type": "TEXT", "label": "Invoice Number", "required": true}, {"id": "amount", "type": "NUMBER", "label": "Amount", "required": true}, {"id": "currency", "type": "SELECT", "label": "Currency", "options": ["EUR", "USD", "GBP"], "required": true}, {"id": "reason", "type": "TEXTAREA", "label": "Reason", "required": true}, {"id": "entity_type", "type": "RADIO_GROUP", "label": "Entity Type", "options": ["Client", "Supplier"], "required": true}, {"id": "client_name", "type": "TEXT", "label": "Client Name", "required": false, "condition": {"field": "entity_type", "value": "Client"}}, {"id": "supplier_name", "type": "TEXT", "label": "Supplier Name", "required": false, "condition": {"field": "entity_type", "value": "Supplier"}}]}	t	2026-02-18 18:01:17.48	2026-02-18 18:01:17.48
+cmlsc97sf0014hir7siq1iha3	Payment Request	\N	1	{"fields": [{"id": "invoice_number", "type": "TEXT", "label": "Invoice Number", "required": true}, {"id": "amount", "type": "NUMBER", "label": "Amount", "required": true}, {"id": "currency", "type": "SELECT", "label": "Currency", "options": ["EUR", "USD", "GBP"], "required": true}, {"id": "payment_method", "type": "SELECT", "label": "Payment Method", "options": ["Bank Transfer", "Check", "Cash", "Credit Card"], "required": true}, {"id": "due_date", "type": "DATE", "label": "Payment Due Date", "required": true}, {"id": "supporting_docs", "type": "FILE_UPLOAD", "label": "Supporting Documents", "required": false}]}	t	2026-02-18 18:01:17.487	2026-02-18 18:01:17.487
+cmlzdikqb000k1qkbx9zazywy	Design	Design	6	{"fields": [{"id": "field_1771863917750_cw34", "type": "SELECT", "label": "Tipo de Design", "colSpan": 12, "columns": [], "maxRows": 50, "minRows": 1, "options": ["3D", "Modelos", "Artwork", "Malhas", "Boards", "Marketing", "Success-Gadget"], "children": [], "required": true, "condition": null, "placeholder": ""}, {"id": "field_1771864256129_er5w", "type": "REPEATER", "label": "Items", "colSpan": 12, "columns": [{"id": "col_1771864281338_g5in", "type": "TEXT", "label": "Descricao", "width": "auto", "options": [], "required": false, "placeholder": ""}, {"id": "col_1771864283039_itn7", "type": "TEXT", "label": "Qnt.", "width": "auto", "options": [], "required": false, "placeholder": ""}], "maxRows": 50, "minRows": 1, "options": [], "children": [], "required": true, "condition": null, "placeholder": ""}]}	t	2026-02-23 16:10:57.011	2026-02-23 16:31:37.296
+\.
+
+
+--
+-- Data for Name: form_submissions; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.form_submissions (id, form_schema_id, ticket_id, data, schema_version, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: internal_notes; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.internal_notes (id, ticket_id, author_id, content, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: messages; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.messages (id, ticket_id, author_id, content, mentions, is_edited, is_deleted, created_at, updated_at) FROM stdin;
+cmlz4syax0001owvb6pci5g1n	cmlz4nzj3002e10n63mvffgyw	cmlsc96wv0006hir7s083phyv	recebeste email ?<div><br></div>	{}	f	f	2026-02-23 12:07:04.617	2026-02-23 12:07:04.617
+cmlz9h1yr0027owvbdfhela03	cmlz4nzj3002e10n63mvffgyw	cmlsc96wv0006hir7s083phyv	email<div><br></div>	{}	f	f	2026-02-23 14:17:47.571	2026-02-23 14:17:47.571
+cmlz9mjqy0001one29tlzy97q	cmlz4nzj3002e10n63mvffgyw	cmlsc96wv0006hir7s083phyv	maill<div><br></div>	{}	f	f	2026-02-23 14:22:03.898	2026-02-23 14:22:03.898
+cmlza2gb9001n12kp6p0y3v29	cmlz4nzj3002e10n63mvffgyw	cmlsc96wv0006hir7s083phyv	aasdasd	{}	f	f	2026-02-23 14:34:25.937	2026-02-23 14:34:25.937
+cmlzan7op0001l7k4qf7p2p7n	cmlz4nzj3002e10n63mvffgyw	cmltqqrc6000b13fsnd6n9mnd	kjkjkj<div><br></div>	{}	f	f	2026-02-23 14:50:34.537	2026-02-23 14:50:34.537
+cmlzcf6850005pv2mzkna44v4	cmlz4nzj3002e10n63mvffgyw	cmlsc96wv0006hir7s083phyv	dasasdf	{}	f	f	2026-02-23 15:40:18.628	2026-02-23 15:40:18.628
+cmlzcujkv00051qkbmbrovpqh	cmlz4nzj3002e10n63mvffgyw	cmlsc96wv0006hir7s083phyv	teryrey	{}	f	f	2026-02-23 15:52:15.772	2026-02-23 15:52:15.772
+cmm0knr5e00058gmdf7bgwkxw	cmlz0gu5x0041ada1ztgz1w8d	cmlsc96wv0006hir7s083phyv	asdasd	{}	f	f	2026-02-24 12:18:42.098	2026-02-24 12:18:42.098
+cmm0ozdma000n60vq6dwrzsf7	cmlz4nzj3002e10n63mvffgyw	cmlsc96wv0006hir7s083phyv	Canned ?asd	{}	f	f	2026-02-24 14:19:42.898	2026-02-24 14:19:42.898
+\.
+
+
+--
+-- Data for Name: notification_policies; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.notification_policies (id, department_id, role, event_type, channel, is_enabled, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: notification_preferences; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.notification_preferences (id, event_type, label, description, enabled, channels, created_at, updated_at) FROM stdin;
+4f708e65-005d-4e09-9643-f6118806f001	TICKET_CREATED	Ticket Created	When a new ticket is created in your department	t	["in_app"]	2026-02-19 10:45:32.628	2026-02-19 10:45:32.628
+e974c83e-48cd-449f-8678-471683351185	TICKET_ASSIGNED	Ticket Assigned	When a ticket is assigned to you	t	["in_app"]	2026-02-19 10:45:32.628	2026-02-19 10:45:32.628
+06d1a0df-72b3-47cc-bd56-0cfadd090db0	STATUS_CHANGED	Status Changed	When a watched ticket changes status	t	["in_app"]	2026-02-19 10:45:32.628	2026-02-19 10:45:32.628
+f226d7dc-2e62-4b48-a39d-d77edf06ef8c	NEW_MESSAGE	New Message	When someone replies on a watched ticket	t	["in_app"]	2026-02-19 10:45:32.628	2026-02-19 10:45:32.628
+eea214f1-8579-43e7-8fc6-867561e1fcc3	TICKET_WATCHER_ADDED	Added as Watcher	When you are added as watcher/CC on a ticket	t	["in_app"]	2026-02-19 10:45:32.628	2026-02-19 10:45:32.628
+8a150539-2261-4e1d-809b-a662560c334f	SLA_WARNING	SLA Warning	When a ticket is approaching SLA deadline	t	["in_app"]	2026-02-19 10:45:32.628	2026-02-19 10:45:32.628
+f5d8763f-756d-45cd-87bd-44e505f5fe13	SLA_BREACH	SLA Breach	When a ticket has breached its SLA	t	["in_app"]	2026-02-19 10:45:32.628	2026-02-19 10:45:32.628
+\.
+
+
+--
+-- Data for Name: notification_rules; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.notification_rules (id, name, description, condition, action, is_active, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: notifications; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.notifications (id, user_id, type, title, content, data, is_read, read_at, created_at) FROM stdin;
+cmlsdjrlm000kgk2i9v3nojdj	cmlsc97nb000ghir7duuqmeij	TICKET_CREATED	New ticket for your department	Ticket LOOP-000001: pedido acessorios	{"ticketId": "cmlsdjrh90008gk2iiyiv3uxd", "ticketNumber": "LOOP-000001"}	t	2026-02-18 18:40:20.124	2026-02-18 18:37:29.336
+cmlsdjrku000igk2i3wvw8nol	cmlsc97nb000ghir7duuqmeij	TICKET_ASSIGNED	New ticket assigned to you	Ticket LOOP-000001: pedido acessorios	{"ticketId": "cmlsdjrh90008gk2iiyiv3uxd", "ticketNumber": "LOOP-000001"}	t	2026-02-18 18:40:20.124	2026-02-18 18:37:29.31
+cmlta0efc0012qtrc7u4vkqa8	cmlsc97nb000ghir7duuqmeij	TICKET_CREATED	New ticket for your department	Ticket LOOP-000002: teste client	{"ticketId": "cmlta0ec1000uqtrcsuc44ugz", "ticketNumber": "LOOP-000002"}	t	2026-02-19 10:48:32.966	2026-02-19 09:46:13.128
+cmlte2uf4000k7ne1rm11mdwj	cmltcgutd000o8c8c9tr6q3yk	TICKET_ASSIGNED	New ticket assigned to you	Ticket LOOP-000004: Teste acc	{"ticketId": "cmlte2ual000c7ne1nqfml943", "ticketNumber": "LOOP-000004"}	t	2026-02-19 11:41:05.979	2026-02-19 11:40:05.632
+cmlte2ufy000m7ne1hzdej49g	cmlsc97nb000ghir7duuqmeij	TICKET_CREATED	New ticket for your department	Ticket LOOP-000004: Teste acc	{"ticketId": "cmlte2ual000c7ne1nqfml943", "ticketNumber": "LOOP-000004"}	t	2026-02-19 11:41:41.463	2026-02-19 11:40:05.663
+cmltfr583000mmi0dy17vwlo4	cmlsc97ma0008hir7on2fgmgd	TICKET_ASSIGNED	New ticket assigned to you	Ticket LOOP-000006: teste	{"ticketId": "cmltfr55f000emi0d8htpu6fv", "ticketNumber": "LOOP-000006"}	f	\N	2026-02-19 12:26:58.995
+cmltrcwnu000if703g1uub9es	cmlsc97nm000ihir7tlgk66ca	TICKET_ASSIGNED	New ticket assigned to you	Ticket LOOP-000007: resolve	{"ticketId": "cmltrcwl4000af703oicl9tcd", "ticketNumber": "LOOP-000007"}	f	\N	2026-02-19 17:51:50.106
+cmlutp4cp000qzuz92f1a2pwf	cmlsc97ma0008hir7on2fgmgd	TICKET_CREATED	New ticket for your department	Ticket LOOP-000008: maria	{"ticketId": "cmlutp48z000gzuz9iwhbz5xy", "ticketNumber": "LOOP-000008"}	f	\N	2026-02-20 11:45:05.353
+cmlutp4by000ozuz96jfsmhf9	cmlsc97mi000ahir7jy3l2o6q	TICKET_ASSIGNED	New ticket assigned to you	Ticket LOOP-000008: maria	{"ticketId": "cmlutp48z000gzuz9iwhbz5xy", "ticketNumber": "LOOP-000008"}	t	2026-02-20 11:45:54.379	2026-02-20 11:45:05.326
+cmlv1v4x60007130b57cjfgv8	cmltcgutd000o8c8c9tr6q3yk	TICKET_FORWARDED	Ticket forwarded to you	System Admin forwarded ticket LOOP-000007: resolve	{"ticketId": "cmltrcwl4000af703oicl9tcd", "ticketNumber": "LOOP-000007"}	t	2026-02-20 15:34:16.016	2026-02-20 15:33:42.954
+cmlyzpo43000uada1dw722rmt	cmlsc97nv000khir7r78mus4k	TICKET_ASSIGNED	New ticket assigned to you	Ticket LOOP-000009: Normal	{"ticketId": "cmlyzpo06000mada1u3zyk20l", "ticketNumber": "LOOP-000009"}	f	\N	2026-02-23 09:44:33.363
+cmlyzpo57000wada1ekax12ud	cmltqqrc6000b13fsnd6n9mnd	TICKET_CREATED	New ticket for your department	Ticket LOOP-000009: Normal	{"ticketId": "cmlyzpo06000mada1u3zyk20l", "ticketNumber": "LOOP-000009"}	f	\N	2026-02-23 09:44:33.403
+cmlyzs5r90019ada108v21a0n	cmlsc97nv000khir7r78mus4k	TICKET_ASSIGNED	New ticket assigned to you	Ticket LOOP-000010: Normal	{"ticketId": "cmlyzs5pr0011ada1oq6xf5w4", "ticketNumber": "LOOP-000010"}	f	\N	2026-02-23 09:46:29.542
+cmlyzs5rx001bada1pyt9gbms	cmltqqrc6000b13fsnd6n9mnd	TICKET_CREATED	New ticket for your department	Ticket LOOP-000010: Normal	{"ticketId": "cmlyzs5pr0011ada1oq6xf5w4", "ticketNumber": "LOOP-000010"}	f	\N	2026-02-23 09:46:29.565
+cmlyzw05d001oada1430mkf6f	cmlsc97nm000ihir7tlgk66ca	TICKET_ASSIGNED	New ticket assigned to you	Ticket LOOP-000011: Low	{"ticketId": "cmlyzw00h001gada185emeji3", "ticketNumber": "LOOP-000011"}	f	\N	2026-02-23 09:49:28.897
+cmlyzxo0c002dada1ws7z8jdv	cmlsc97nv000khir7r78mus4k	TICKET_ASSIGNED	New ticket assigned to you	Ticket LOOP-000012: Normal	{"ticketId": "cmlyzxny90025ada1f6vy2b0u", "ticketNumber": "LOOP-000012"}	f	\N	2026-02-23 09:50:46.476
+cmlyzz558002qada1570bpo4t	cmlsc97ma0008hir7on2fgmgd	TICKET_ASSIGNED	New ticket assigned to you	Ticket LOOP-000013: hight	{"ticketId": "cmlyzz52k002iada1fp1k8qiz", "ticketNumber": "LOOP-000013"}	f	\N	2026-02-23 09:51:55.34
+cmlz0gu8n0049ada17r9psxge	cmlsc97mz000ehir7xe46e5bk	TICKET_ASSIGNED	New ticket assigned to you	Ticket LOOP-000017: sdfsdf	{"ticketId": "cmlz0gu5x0041ada1ztgz1w8d", "ticketNumber": "LOOP-000017"}	f	\N	2026-02-23 10:05:41.015
+cmlz0gu9q004bada1f1byd4hi	cmlsc97mq000chir7kza21yz0	TICKET_CREATED	New ticket for your department	Ticket LOOP-000017: sdfsdf	{"ticketId": "cmlz0gu5x0041ada1ztgz1w8d", "ticketNumber": "LOOP-000017"}	f	\N	2026-02-23 10:05:41.054
+cmlz0h21d004gada1pgblg89j	cmlsc96wv0006hir7s083phyv	STATUS_CHANGED	Ticket LOOP-000017 status changed	Status changed from OPEN to WAITING_REPLY	{"ticketId": "cmlz0gu5x0041ada1ztgz1w8d", "newStatus": "WAITING_REPLY", "oldStatus": "OPEN", "ticketNumber": "LOOP-000017"}	t	2026-02-23 11:35:45.73	2026-02-23 10:05:51.121
+cmlz0h4jx004lada11vzsrixx	cmlsc96wv0006hir7s083phyv	STATUS_CHANGED	Ticket LOOP-000017 status changed	Status changed from WAITING_REPLY to IN_PROGRESS	{"ticketId": "cmlz0gu5x0041ada1ztgz1w8d", "newStatus": "IN_PROGRESS", "oldStatus": "WAITING_REPLY", "ticketNumber": "LOOP-000017"}	t	2026-02-23 11:35:45.73	2026-02-23 10:05:54.38
+cmlz02lba003kada1wrm8w7px	cmlsc96wv0006hir7s083phyv	STATUS_CHANGED	Ticket LOOP-000016 status changed	Status changed from DRAFT to OPEN	{"ticketId": "cmlz02etz0039ada16ejowe46", "newStatus": "OPEN", "oldStatus": "DRAFT", "ticketNumber": "LOOP-000016"}	t	2026-02-23 11:39:36.421	2026-02-23 09:54:36.262
+cmlz02mtt003pada11pc8g8gi	cmlsc96wv0006hir7s083phyv	STATUS_CHANGED	Ticket LOOP-000016 status changed	Status changed from OPEN to DRAFT	{"ticketId": "cmlz02etz0039ada16ejowe46", "newStatus": "DRAFT", "oldStatus": "OPEN", "ticketNumber": "LOOP-000016"}	t	2026-02-23 11:39:36.421	2026-02-23 09:54:38.225
+cmlz02q28003uada1jwmog0pw	cmlsc96wv0006hir7s083phyv	STATUS_CHANGED	Ticket LOOP-000016 status changed	Status changed from DRAFT to WAITING_REPLY	{"ticketId": "cmlz02etz0039ada16ejowe46", "newStatus": "WAITING_REPLY", "oldStatus": "DRAFT", "ticketNumber": "LOOP-000016"}	t	2026-02-23 11:39:36.421	2026-02-23 09:54:42.416
+cmlz3tj69000810n6eeajzczi	cmlsc96wv0006hir7s083phyv	STATUS_CHANGED	Ticket LOOP-000014 status changed	Status changed from OPEN to CLOSED	{"ticketId": "cmlz00038002tada1g4mtynn0", "newStatus": "CLOSED", "oldStatus": "OPEN", "ticketNumber": "LOOP-000014"}	t	2026-02-23 11:39:42.418	2026-02-23 11:39:32.049
+cmlz4nzmt002m10n6okkt4jdu	cmltqqrc6000b13fsnd6n9mnd	TICKET_ASSIGNED	New ticket assigned to you	Ticket LOOP-000018: test	{"ticketId": "cmlz4nzj3002e10n63mvffgyw", "ticketNumber": "LOOP-000018"}	t	2026-02-23 12:26:11.728	2026-02-23 12:03:13.061
+cmlyzxo13002fada15eryf70t	cmltqqrc6000b13fsnd6n9mnd	TICKET_CREATED	New ticket for your department	Ticket LOOP-000012: Normal	{"ticketId": "cmlyzxny90025ada1f6vy2b0u", "ticketNumber": "LOOP-000012"}	t	2026-02-23 12:26:21.037	2026-02-23 09:50:46.503
+cmlz0006m0031ada1n6ue471m	cmltcgutd000o8c8c9tr6q3yk	TICKET_ASSIGNED	New ticket assigned to you	Ticket LOOP-000014: urgent	{"ticketId": "cmlz00038002tada1g4mtynn0", "ticketNumber": "LOOP-000014"}	t	2026-02-23 12:29:26.169	2026-02-23 09:52:35.566
+cmlzan7qm0003l7k4bvtyi4n2	cmlsc96wv0006hir7s083phyv	NEW_MESSAGE	New reply on LOOP-000018	Fabio Costa replied	{"ticketId": "cmlz4nzj3002e10n63mvffgyw", "messageId": "cmlzan7op0001l7k4qf7p2p7n", "ticketNumber": "LOOP-000018"}	t	2026-02-23 15:40:14.01	2026-02-23 14:50:34.607
+cmlz0007l0033ada1gjsxh0ic	cmlsc97nb000ghir7duuqmeij	TICKET_CREATED	New ticket for your department	Ticket LOOP-000014: urgent	{"ticketId": "cmlz00038002tada1g4mtynn0", "ticketNumber": "LOOP-000014"}	t	2026-02-23 17:21:08.86	2026-02-23 09:52:35.601
+cmlzh1d4g000q9za30c4gi6sv	cmlsc96wv0006hir7s083phyv	STATUS_CHANGED	Ticket LOOP-000018 status changed	Status changed from OPEN to CLOSED	{"ticketId": "cmlz4nzj3002e10n63mvffgyw", "newStatus": "CLOSED", "oldStatus": "OPEN", "ticketNumber": "LOOP-000018"}	t	2026-02-23 18:01:09.76	2026-02-23 17:49:32.464
+cmlzhfss600179za34cpe0dh4	cmlsc96wv0006hir7s083phyv	STATUS_CHANGED	Ticket LOOP-000013 status changed	Status changed from OPEN to CLOSED	{"ticketId": "cmlyzz52k002iada1fp1k8qiz", "newStatus": "CLOSED", "oldStatus": "OPEN", "ticketNumber": "LOOP-000013"}	t	2026-02-23 18:07:57.442	2026-02-23 18:00:45.942
+cmm0tb9gt001w60vqxvrets86	cmlsc96wv0006hir7s083phyv	STATUS_CHANGED	Ticket LOOP-000016 status changed	Status changed from WAITING_REPLY to REJECTED	{"ticketId": "cmlz02etz0039ada16ejowe46", "newStatus": "REJECTED", "oldStatus": "WAITING_REPLY", "ticketNumber": "LOOP-000016"}	f	\N	2026-02-24 16:20:55.853
+\.
+
+
+--
+-- Data for Name: password_resets; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.password_resets (id, token, user_id, expires_at, used_at, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: permissions; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.permissions (id, name, label, description, category, created_at) FROM stdin;
+3bc274f8-a59f-48ef-8d8b-4be439e5575e	admin.access	Access Admin Panel	Access the administration panel	admin	2026-02-20 15:22:37.615
+aaadb49f-c76f-4674-a2e2-c68822de7000	tickets.delete	Delete Tickets	Permanently delete tickets	tickets	2026-02-20 15:22:37.615
+37227b95-c597-42e6-a96b-e1dceacb8b36	tickets.delete_any	Delete Any Ticket	Delete tickets created by any user	tickets	2026-02-20 15:22:37.615
+d45fa4c9-58ef-47e9-a90b-82988c915588	tickets.manage_all	Manage All Tickets	View and manage all tickets across departments	tickets	2026-02-20 15:22:37.615
+baaaeb0f-f096-47a8-b51b-84916b31152e	tickets.forward	Forward Tickets	Forward tickets to other users	tickets	2026-02-20 15:22:37.615
+64fb6665-6750-4531-96b3-1099ed2116b4	departments.manage	Manage Departments	Create, edit, and delete departments	departments	2026-02-20 15:22:37.615
+e9e0038d-5410-43ae-ae6e-9fdd2989092c	users.manage	Manage Users	Create, edit, and deactivate users	users	2026-02-20 15:22:37.615
+89b3f893-20a7-400a-adaf-5599e804a867	settings.manage	Manage Settings	Change system settings and branding	settings	2026-02-20 15:22:37.615
+b6a4e5e2-d9c4-466d-8267-0617f582de7e	forms.manage	Manage Forms	Create and edit form schemas	forms	2026-02-20 15:22:37.615
+6722a6ae-5bd1-4671-9918-464559b5880b	analytics.view	View Analytics	Access analytics and reporting	analytics	2026-02-20 15:22:37.615
+328f04df-21e0-44c1-b358-1a28a4717c3b	audit.view	View Audit Log	Access the audit log	audit	2026-02-20 15:22:37.615
+\.
+
+
+--
+-- Data for Name: refresh_tokens; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.refresh_tokens (id, token, user_id, expires_at, created_at, revoked_at) FROM stdin;
+cmlsc9yc0000jqibng5ima0oi	139946fe-7918-44a9-a810-942075ab623d	cmlsc96wv0006hir7s083phyv	2026-02-25 18:01:51.887	2026-02-18 18:01:51.888	2026-02-18 18:06:13.142
+cmltamx85001cqtrc4p5boifj	97f7bb06-2201-4ff8-ae27-f5a8339fb2e6	cmlsc97mq000chir7kza21yz0	2026-02-26 10:03:43.924	2026-02-19 10:03:43.925	2026-02-19 10:04:05.21
+cmlscftqq000pqibnbet5q24u	b51ab029-0597-492e-9dcd-0a559fb2707e	cmlsc96wv0006hir7s083phyv	2026-02-25 18:06:25.873	2026-02-18 18:06:25.874	2026-02-18 18:22:07.191
+cmlsd002g000rqibn2vxd72iq	46bf8fef-2e1e-4a2f-9da8-2a82c7120841	cmlsc96wv0006hir7s083phyv	2026-02-25 18:22:07.189	2026-02-18 18:22:07.191	\N
+cmlsd002v000tqibnyr2m9r2c	6f735230-98da-4448-86cd-95f15b5693c7	cmlsc96wv0006hir7s083phyv	2026-02-25 18:22:07.203	2026-02-18 18:22:07.207	\N
+cmlsd9sor0003gk2i8b4mpk4m	584a30e8-f306-475e-9ec4-df20649c7e00	cmlsc96wv0006hir7s083phyv	2026-02-25 18:29:44.186	2026-02-18 18:29:44.187	2026-02-18 18:38:00.076
+cmlsdl33p000qgk2ir5q8y7a1	22bcc67c-0643-4ac8-ab48-8e614ec9a02c	cmlsc96wv0006hir7s083phyv	2026-02-25 18:38:30.9	2026-02-18 18:38:30.902	2026-02-18 18:38:52.589
+cmlsdlp7h000wgk2icmo1yuf3	bf810f35-f5cb-4b4b-ae83-ed7df3efbe95	cmlsc97mq000chir7kza21yz0	2026-02-25 18:38:59.548	2026-02-18 18:38:59.549	2026-02-18 18:39:18.626
+cmlsdmooc0012gk2ib1b3j88c	5a091c9b-ad58-45e3-bfb3-863e27ef5086	cmlsc96wv0006hir7s083phyv	2026-02-25 18:39:45.513	2026-02-18 18:39:45.516	2026-02-18 18:39:54.262
+cmlsdn0mp0018gk2iu6e8phrk	3caaa975-9d2e-4b98-b964-81aea2f6635e	cmlsc97nb000ghir7duuqmeij	2026-02-25 18:40:01.003	2026-02-18 18:40:01.007	2026-02-18 18:43:19.597
+cmlsdrj5d001egk2imvq2obwn	3280657f-976d-4714-b815-b6a18fdf3c69	cmlsc96wv0006hir7s083phyv	2026-02-25 18:43:31.632	2026-02-18 18:43:31.633	2026-02-18 18:59:07.282
+cmlsebl3o0001qtrcgzur19x2	2be2481f-d150-4be7-9277-9ce5a1e329f0	cmlsc96wv0006hir7s083phyv	2026-02-25 18:59:07.281	2026-02-18 18:59:07.282	\N
+cmltanml4001iqtrc2g6jbux1	03cafbe0-ab7c-474e-986c-8a6a1aa5b911	cmlsc96wv0006hir7s083phyv	2026-02-26 10:04:16.791	2026-02-19 10:04:16.792	2026-02-19 10:04:38.591
+cmlsebl3y0003qtrcs4og0wfj	d3f49239-862d-46e2-b0eb-57a3f50f69ed	cmlsc96wv0006hir7s083phyv	2026-02-25 18:59:07.292	2026-02-18 18:59:07.294	2026-02-18 19:14:07.39
+cmlseuvmy0005qtrcr0t1it4o	3c863863-072f-4c07-baac-f5e68b3074cc	cmlsc96wv0006hir7s083phyv	2026-02-25 19:14:07.399	2026-02-18 19:14:07.4	\N
+cmlseuvn00007qtrc9lcd9d3n	a0fd189d-2196-4e97-abc0-867ff724cabd	cmlsc96wv0006hir7s083phyv	2026-02-25 19:14:07.401	2026-02-18 19:14:07.403	2026-02-18 19:29:07.237
+cmlsfe5ye0009qtrcoa7pia69	b9e8fbca-7f67-45f0-96ac-4335c3bf28dc	cmlsc96wv0006hir7s083phyv	2026-02-25 19:29:07.235	2026-02-18 19:29:07.237	\N
+cmltdnnc900037ne10apfvw10	c9520c6f-b1f8-4061-8f21-43e0426de6c0	cmltcgutd000o8c8c9tr6q3yk	2026-02-26 11:28:16.615	2026-02-19 11:28:16.617	2026-02-19 11:38:23.564
+cmlsfxgml000dqtrc5lso5c7j	b775acd5-a520-4b56-b7d2-fb603f590539	cmlsc96wv0006hir7s083phyv	2026-02-25 19:44:07.53	2026-02-18 19:44:07.533	\N
+cmlsfe5ys000bqtrcpbj23btd	6104c3fc-7214-44ba-a542-ef9245e3917a	cmlsc96wv0006hir7s083phyv	2026-02-25 19:29:07.247	2026-02-18 19:29:07.252	2026-02-18 19:44:07.537
+cmltao93x001oqtrctphq1hnb	ce8f11ac-d365-484a-a6fd-02d68959c482	cmlsc97nb000ghir7duuqmeij	2026-02-26 10:04:45.976	2026-02-19 10:04:45.981	2026-02-19 10:20:08.152
+cmlsfxgne000fqtrcsrobugm8	255c928b-670e-45b1-bdeb-6c0b0ab429e6	cmlsc96wv0006hir7s083phyv	2026-02-25 19:44:07.557	2026-02-18 19:44:07.56	2026-02-19 09:09:39.827
+cmlt8pe28000hqtrcrthtjr9k	4f5bb9b9-b50f-4910-9dd1-ca6cbf07ce70	cmlsc96wv0006hir7s083phyv	2026-02-26 09:09:39.822	2026-02-19 09:09:39.824	\N
+cmltb80nx001qqtrcl8gh119o	edea4b8a-8f7f-4fde-b00e-572b2b3eaf49	cmlsc97nb000ghir7duuqmeij	2026-02-26 10:20:08.156	2026-02-19 10:20:08.157	\N
+cmlt8pe2r000jqtrcvhxi878f	185ab4b8-dc94-4c02-8629-ad0e79658b3d	cmlsc96wv0006hir7s083phyv	2026-02-26 09:09:39.841	2026-02-19 09:09:39.842	2026-02-19 09:25:07.972
+cmlt99a8s000lqtrcfigcekap	15e03245-2657-49cc-810d-b6d6f7814d67	cmlsc96wv0006hir7s083phyv	2026-02-26 09:25:07.994	2026-02-19 09:25:07.996	\N
+cmlt99a92000nqtrcbm6aios6	93395475-57ec-4d05-be13-2d45cf99633f	cmlsc96wv0006hir7s083phyv	2026-02-26 09:25:08.005	2026-02-19 09:25:08.007	2026-02-19 09:41:07.979
+cmlt9tuzi000pqtrc7fr9hkf6	0ebe2e46-c8dc-4ffe-aaa7-0c2b1adc27e2	cmlsc96wv0006hir7s083phyv	2026-02-26 09:41:07.995	2026-02-19 09:41:07.998	\N
+cmlt9tuzs000rqtrck2km8mcj	50a7c477-278c-44e4-bab4-961f4f63ec5a	cmlsc96wv0006hir7s083phyv	2026-02-26 09:41:08.002	2026-02-19 09:41:08.008	2026-02-19 09:57:08.429
+cmltaeg2i0014qtrcbjfcn1z2	9cfe7e8d-5d5a-4efc-bdd3-88722a670370	cmlsc96wv0006hir7s083phyv	2026-02-26 09:57:08.44	2026-02-19 09:57:08.442	\N
+cmltaeg2s0016qtrcqrcqyx4r	10b7a07b-ab91-4f66-a686-31ae5681681f	cmlsc96wv0006hir7s083phyv	2026-02-26 09:57:08.451	2026-02-19 09:57:08.452	2026-02-19 10:03:37.68
+cmltc8dko00018c8ch1un8yde	6963243a-673c-4a27-a575-d2ac2ae04110	cmlsc97nb000ghir7duuqmeij	2026-02-26 10:48:24.474	2026-02-19 10:48:24.504	\N
+cmltb80o4001sqtrc1sjuxweu	a28f1edc-2dd3-4ebb-a78d-9f46102ee145	cmlsc97nb000ghir7duuqmeij	2026-02-26 10:20:08.163	2026-02-19 10:20:08.164	2026-02-19 10:48:24.42
+cmltc8dmd00038c8cwguz5ete	956e0987-02ad-4774-9eac-91382c1ebbb9	cmlsc97nb000ghir7duuqmeij	2026-02-26 10:48:24.558	2026-02-19 10:48:24.561	2026-02-19 10:49:36.549
+cmltca6la000i8c8czbaj8iub	08ab85f1-5ed1-4d39-b98a-19fc9ba2829e	cmlsc96wv0006hir7s083phyv	2026-02-26 10:49:48.765	2026-02-19 10:49:48.766	2026-02-19 10:55:06.541
+cmlte12a000097ne17fmww70y	c27e3e8a-0ad6-4ccf-92d6-c87914553fcc	cmlsc96wv0006hir7s083phyv	2026-02-26 11:38:42.503	2026-02-19 11:38:42.504	2026-02-19 11:40:54.231
+cmltd1lsv00017181oa6fed9u	f30b40b5-73ff-4c6f-91bb-7f0e1e914437	cmltcgutd000o8c8c9tr6q3yk	2026-02-26 11:11:08.184	2026-02-19 11:11:08.191	\N
+cmltchaav000u8c8c0ghy2eij	658a5112-f3f5-4467-a631-cb08da45dfb0	cmltcgutd000o8c8c9tr6q3yk	2026-02-26 10:55:20.166	2026-02-19 10:55:20.167	2026-02-19 11:11:08.198
+cmltdnnap00017ne17tnzewx7	2535f1a1-406c-4940-a2b8-a89be14bb527	cmltcgutd000o8c8c9tr6q3yk	2026-02-26 11:28:16.538	2026-02-19 11:28:16.56	\N
+cmltd1ltk00037181e1hhfz94	8deb5e88-f6c3-4873-b0d6-35ba76aa1271	cmltcgutd000o8c8c9tr6q3yk	2026-02-26 11:11:08.215	2026-02-19 11:11:08.216	2026-02-19 11:28:16.457
+cmlte4096000x7ne1okcu2jlw	4d786136-7d70-43bd-a227-2bdc61a13a71	cmltcgutd000o8c8c9tr6q3yk	2026-02-26 11:40:59.849	2026-02-19 11:40:59.85	2026-02-19 11:41:18.981
+cmlte4r5l00137ne15hn46veo	6ba819eb-2b82-4169-ab48-36146f966b35	cmlsc97nb000ghir7duuqmeij	2026-02-26 11:41:34.711	2026-02-19 11:41:34.713	2026-02-19 11:48:40.65
+cmltee69300054uhqwnogoqqv	3cdd3e50-e18c-47a2-be34-d8fa43300989	cmlsc97nb000ghir7duuqmeij	2026-02-26 11:48:54.182	2026-02-19 11:48:54.184	2026-02-19 11:49:40.08
+cmltefdi2000b4uhq2tmp8tbm	0c82a197-bc83-4b21-a540-e469c738ae50	cmlsc96wv0006hir7s083phyv	2026-02-26 11:49:50.232	2026-02-19 11:49:50.234	2026-02-19 11:50:02.732
+cmltefwr9000h4uhqqwsdiapi	31809172-403a-462b-8117-5466582c9315	cmlsc97ma0008hir7on2fgmgd	2026-02-26 11:50:15.188	2026-02-19 11:50:15.189	2026-02-19 12:05:31.788
+cmltezk1d0001uwnbb7a11xwh	9690b2ef-9a93-40dc-bacc-d279b872e792	cmlsc97ma0008hir7on2fgmgd	2026-02-26 12:05:31.823	2026-02-19 12:05:31.825	2026-02-19 12:06:56.473
+cmltf3xd20007uwnbfdzenoae	4a58baae-a23b-4311-843b-ebb921a575dc	cmlsc97nb000ghir7duuqmeij	2026-02-26 12:08:55.717	2026-02-19 12:08:55.718	2026-02-19 12:15:31.463
+cmltg82a2000umi0dt52u6s13	1045f5ad-0fbe-46db-8762-ba9f460c0397	cmlsc97nb000ghir7duuqmeij	2026-02-26 12:40:08.329	2026-02-19 12:40:08.33	2026-02-19 12:55:08.171
+cmltffb8z0005mi0d45dbda9l	ca0af1f4-118d-4acc-955a-e037552d53b8	cmlsc96wv0006hir7s083phyv	2026-02-26 12:17:46.929	2026-02-19 12:17:46.931	2026-02-19 12:33:08.307
+cmltfz28b000omi0dzs8688m2	30cc9e13-e668-41dc-b7d4-34b5786a6d67	cmlsc96wv0006hir7s083phyv	2026-02-26 12:33:08.354	2026-02-19 12:33:08.362	\N
+cmltfnpsk0009mi0d6r7x6h48	e86719ae-3e4e-4802-be7e-0cf7d049223b	cmlsc97nb000ghir7duuqmeij	2026-02-26 12:24:19.027	2026-02-19 12:24:19.029	2026-02-19 12:40:08.293
+cmltg829w000smi0dfwu9b3cw	02668d07-9d52-4011-b437-3fce9568cb36	cmlsc97nb000ghir7duuqmeij	2026-02-26 12:40:08.323	2026-02-19 12:40:08.324	\N
+cmltfz28r000qmi0dpq5v1czn	8f61b478-36f9-4b88-a5e7-9158d867d826	cmlsc96wv0006hir7s083phyv	2026-02-26 12:33:08.375	2026-02-19 12:33:08.379	2026-02-19 12:48:08.183
+cmltgicjw000wmi0dh5xgu5t7	e55c48b9-4227-4da2-9f29-7ad6eebc56e7	cmlsc96wv0006hir7s083phyv	2026-02-26 12:48:08.202	2026-02-19 12:48:08.204	\N
+cmltgrcn40010mi0dnv3zqajt	1546186d-9c54-4d24-b4eb-a945040129a3	cmlsc97nb000ghir7duuqmeij	2026-02-26 12:55:08.219	2026-02-19 12:55:08.223	\N
+cmltgick5000ymi0dhfd7f6py	db0514cc-97a1-4365-ad5d-4cd217902899	cmlsc96wv0006hir7s083phyv	2026-02-26 12:48:08.208	2026-02-19 12:48:08.214	2026-02-19 13:03:08.186
+cmlth1n0m0012mi0d37dodiol	2f6fed99-3142-4ab7-b138-98cd0905f180	cmlsc96wv0006hir7s083phyv	2026-02-26 13:03:08.224	2026-02-19 13:03:08.23	\N
+cmltj1oea0016mi0dmpjrvbc4	4b1accd8-38f7-4a3b-af18-68110762e958	cmlsc97nb000ghir7duuqmeij	2026-02-26 13:59:09.248	2026-02-19 13:59:09.25	\N
+cmltqmyqr000313fs0uywy24p	aae92824-6855-4fc3-bf15-2c09b7dd30bb	cmlsc97nb000ghir7duuqmeij	2026-02-26 17:31:39.745	2026-02-19 17:31:39.747	2026-02-19 17:33:26.659
+cmltkiesu0003uwhpi6ed7mky	b8e0992b-878c-45d2-b1a3-dab9acae3cd5	cmlsc96wv0006hir7s083phyv	2026-02-26 14:40:09.579	2026-02-19 14:40:09.581	2026-02-19 14:56:08.254
+cmltl2yj00005uwhpwutr3ijw	dacb0c5f-caf5-4e20-83ad-14c18bcf4131	cmlsc96wv0006hir7s083phyv	2026-02-26 14:56:08.267	2026-02-19 14:56:08.269	\N
+cmltl2yje0007uwhpkl8bn44j	3cf40420-a4e6-47a0-82aa-bc4aee0e8929	cmlsc96wv0006hir7s083phyv	2026-02-26 14:56:08.281	2026-02-19 14:56:08.282	2026-02-19 15:11:08.266
+cmltlm8zm0009uwhpm6bef50i	33e5a5ea-5ce9-4018-8555-b769d08d2109	cmlsc96wv0006hir7s083phyv	2026-02-26 15:11:08.286	2026-02-19 15:11:08.289	\N
+cmltlm8zx000buwhpn2wdtibh	86313028-4dde-49e5-836f-58eef80ba597	cmlsc96wv0006hir7s083phyv	2026-02-26 15:11:08.295	2026-02-19 15:11:08.301	2026-02-19 15:17:58
+cmltqpncy000913fs7wvkcu0y	022120ca-67db-44f1-8ed4-ff0c94365e48	cmlsc96wv0006hir7s083phyv	2026-02-26 17:33:44.961	2026-02-19 17:33:44.963	2026-02-19 17:34:45.584
+cmltlvjg00005t3sj7uwnwfkg	4f9c30a7-44d8-4381-aa31-40176661ac7e	cmlsc97nb000ghir7duuqmeij	2026-02-26 15:18:21.742	2026-02-19 15:18:21.744	2026-02-19 15:33:40.115
+cmltmf8390001xosijcy869rw	82db7a1b-5d6a-473f-b99b-7b31bca160f4	cmlsc97nb000ghir7duuqmeij	2026-02-26 15:33:40.147	2026-02-19 15:33:40.149	\N
+cmltmz4fp0005xosi7m9f4e2l	4baacaf4-8774-46d2-87b5-6d2edd55803f	cmlsc97nb000ghir7duuqmeij	2026-02-26 15:49:08.529	2026-02-19 15:49:08.531	\N
+cmltmf83i0003xosijx13j84u	e002759e-a38c-4c3b-8008-793efe7ec667	cmlsc97nb000ghir7duuqmeij	2026-02-26 15:33:40.156	2026-02-19 15:33:40.158	2026-02-19 15:49:08.525
+cmlupcb120003136fhalhz6tz	1fd7817d-df0d-43a4-b40e-31b645fdcb13	cmlsc96wv0006hir7s083phyv	2026-02-27 09:43:09.013	2026-02-20 09:43:09.014	2026-02-20 09:44:04.018
+cmltmz4gi0007xosi7a7hdacv	e95fba11-41ae-4789-b0a9-1052e546b9e1	cmlsc97nb000ghir7duuqmeij	2026-02-26 15:49:08.555	2026-02-19 15:49:08.562	2026-02-19 16:04:10.104
+cmltnig41000bxosi0gvk427p	b6172d89-dc48-4f88-b76d-9a9b7dda92b1	cmlsc97nb000ghir7duuqmeij	2026-02-26 16:04:10.126	2026-02-19 16:04:10.129	\N
+cmltswlk9000uf7033tkru1lj	842f7394-f291-45a1-b392-4270df3c20e8	cmltqqrc6000b13fsnd6n9mnd	2026-02-26 18:35:08.454	2026-02-19 18:35:08.457	2026-02-19 18:50:08.596
+cmlto1qke000dxosikt2z6am4	24765531-bbfd-4f90-b346-923c331a3a07	cmlsc97nb000ghir7duuqmeij	2026-02-26 16:19:10.13	2026-02-19 16:19:10.143	\N
+cmltnig3t0009xosixegknrqj	aa2b9411-879e-434b-bb05-1653d1e7c4c0	cmlsc97nb000ghir7duuqmeij	2026-02-26 16:04:10.118	2026-02-19 16:04:10.121	2026-02-19 16:19:10.143
+cmlttfw4a000wf703u8pj6gkf	a113ac87-7d19-4ab3-a61c-c60fac25811a	cmltqqrc6000b13fsnd6n9mnd	2026-02-26 18:50:08.601	2026-02-19 18:50:08.602	\N
+cmltol10t000hxosiji2lkjbb	00e93d0d-292d-42a5-9b78-1a2e0ef2fc82	cmlsc97nb000ghir7duuqmeij	2026-02-26 16:34:10.155	2026-02-19 16:34:10.157	\N
+cmlto1qlv000fxosi2apwwv3g	4e3a6625-318b-4269-8873-4fc2fdb3c9b1	cmlsc97nb000ghir7duuqmeij	2026-02-26 16:19:10.183	2026-02-19 16:19:10.195	2026-02-19 16:34:10.164
+cmltqr585000h13fsdyfjvi4k	7164860e-5188-4bbf-9a4c-7b204f175bb2	cmltqqrc6000b13fsnd6n9mnd	2026-02-26 17:34:54.772	2026-02-19 17:34:54.773	2026-02-19 17:49:57.382
+cmltol12r000jxosix5j20we3	15e8e082-9b54-4ec2-bc06-238b84330882	cmlsc97nb000ghir7duuqmeij	2026-02-26 16:34:10.196	2026-02-19 16:34:10.227	2026-02-19 16:50:08.358
+cmltp5kdy000lxosi7l1lnm63	ecd9ba17-b740-4b10-808b-1b2fc8bd50ba	cmlsc97nb000ghir7duuqmeij	2026-02-26 16:50:08.372	2026-02-19 16:50:08.374	\N
+cmltp5ke8000nxosi126o4ldz	5892b918-363d-4cd7-85ce-c7dfb76f59eb	cmlsc97nb000ghir7duuqmeij	2026-02-26 16:50:08.383	2026-02-19 16:50:08.384	2026-02-19 16:54:01.306
+cmltpdiai00032z4ip1abjb5b	e7deada6-2c2a-4f42-9778-07498626810a	cmlsc97nb000ghir7duuqmeij	2026-02-26 16:56:18.9	2026-02-19 16:56:18.906	2026-02-19 16:56:56.427
+cmltrahpl0001f703uraawczs	e6ca3249-ac7d-44d4-9103-1c4114fd9fe7	cmltqqrc6000b13fsnd6n9mnd	2026-02-26 17:49:57.412	2026-02-19 17:49:57.415	\N
+cmltpelky00092z4iief5rmx6	2b4140bf-6639-4cb2-935b-582311578d72	cmlsc96wv0006hir7s083phyv	2026-02-26 16:57:09.824	2026-02-19 16:57:09.826	2026-02-19 17:12:10.851
+cmltpxwu6000d2z4i83axpuo1	7a420de9-9c6f-4fbd-a41a-9d51a0af517f	cmlsc96wv0006hir7s083phyv	2026-02-26 17:12:10.874	2026-02-19 17:12:10.877	\N
+cmltrahpp0003f703p077rqz1	543eef30-2bfd-48d5-aa4a-2284bbb936e8	cmltqqrc6000b13fsnd6n9mnd	2026-02-26 17:49:57.416	2026-02-19 17:49:57.421	\N
+cmltpxwtd000b2z4iqj20kpcb	9c7607bb-bad0-48bb-9630-782f5ebadbfa	cmlsc96wv0006hir7s083phyv	2026-02-26 17:12:10.846	2026-02-19 17:12:10.849	2026-02-19 17:28:08.391
+cmltqifo3000f2z4i2mrqo6ct	3c66b1dd-3fec-4be8-a44b-db13bccb98a1	cmlsc96wv0006hir7s083phyv	2026-02-26 17:28:08.402	2026-02-19 17:28:08.403	\N
+cmltqifod000h2z4ivcqb8v2x	ba37225c-0b72-49a7-83f4-eb1cb19ad257	cmlsc96wv0006hir7s083phyv	2026-02-26 17:28:08.411	2026-02-19 17:28:08.413	\N
+cmltrahpt0005f703mwu7q2ks	1aa9c3fd-7eb2-45ab-8098-e2f685e17505	cmltqqrc6000b13fsnd6n9mnd	2026-02-26 17:49:57.422	2026-02-19 17:49:57.424	\N
+cmltrahq50007f703wx7ogsga	ceced446-8bfc-41b2-a954-370bc9b49aca	cmltqqrc6000b13fsnd6n9mnd	2026-02-26 17:49:57.436	2026-02-19 17:49:57.437	2026-02-19 18:05:05.606
+cmltrtyhp000mf703vt48cm5n	f106aeb4-08b1-45b7-ab07-d3e94ccd5f99	cmltqqrc6000b13fsnd6n9mnd	2026-02-26 18:05:05.626	2026-02-19 18:05:05.629	\N
+cmltrtyhl000kf703mxxx3xfo	6427a330-47d6-4479-905a-2feaf6eab83c	cmltqqrc6000b13fsnd6n9mnd	2026-02-26 18:05:05.622	2026-02-19 18:05:05.623	2026-02-19 18:20:05.639
+cmltsd8yy000of7032lzufeac	92b61511-054e-43bb-bb7c-c36378fa8e89	cmltqqrc6000b13fsnd6n9mnd	2026-02-26 18:20:05.673	2026-02-19 18:20:05.674	\N
+cmlttfw4k000yf703vltgli2m	92a4ac1f-c70f-435d-acb8-ab51e31903ea	cmltqqrc6000b13fsnd6n9mnd	2026-02-26 18:50:08.611	2026-02-19 18:50:08.612	2026-02-19 19:05:08.458
+cmltsd910000qf7036jr6gt6x	d6580683-b383-4bcc-9562-f0f497039ff8	cmltqqrc6000b13fsnd6n9mnd	2026-02-26 18:20:05.652	2026-02-19 18:20:05.654	2026-02-19 18:35:08.437
+cmltswlk2000sf703l6ma108m	8496bfc7-7bec-4bd0-a67d-56163d543895	cmltqqrc6000b13fsnd6n9mnd	2026-02-26 18:35:08.447	2026-02-19 18:35:08.45	\N
+cmlttz6gm0010f703ojsg6w7n	c9170fa8-46d6-43d4-b2c1-3914168176ab	cmltqqrc6000b13fsnd6n9mnd	2026-02-26 19:05:08.469	2026-02-19 19:05:08.47	\N
+cmlttz6gv0012f70346t0d302	dff349bd-c1e6-4a19-8a3c-ebe72a59b173	cmltqqrc6000b13fsnd6n9mnd	2026-02-26 19:05:08.478	2026-02-19 19:05:08.479	2026-02-19 19:20:08.535
+cmltuigzm0014f703sdd0tozx	80d15ab8-1487-4ead-8239-d4caec2874e7	cmltqqrc6000b13fsnd6n9mnd	2026-02-26 19:20:08.572	2026-02-19 19:20:08.578	\N
+cmlupdyfa0009136fy1mc8ggn	ebf5e08d-434c-45bc-8736-78010a622dde	cmltcgutd000o8c8c9tr6q3yk	2026-02-27 09:44:25.989	2026-02-20 09:44:25.99	2026-02-20 09:45:00.428
+cmlupymtu000j136fj8qtdvk8	73e96209-f78f-48af-bb1d-3c5bd0f9e3df	cmltcgutd000o8c8c9tr6q3yk	2026-02-27 10:00:30.736	2026-02-20 10:00:30.738	\N
+cmlupfb03000f136f81fjo2qy	076254c6-9cbc-49d5-aad3-05e20eae9a69	cmltcgutd000o8c8c9tr6q3yk	2026-02-27 09:45:28.942	2026-02-20 09:45:28.947	2026-02-20 10:00:30.741
+cmlupymup000l136fflnrtpak	8146ed60-175e-4165-b19f-6365677c3f9d	cmltcgutd000o8c8c9tr6q3yk	2026-02-27 10:00:30.765	2026-02-20 10:00:30.766	2026-02-20 10:15:54.908
+cmluqifyk000n136frpdv2r1v	dabf278a-aec7-4380-b23d-eba0c0868423	cmltcgutd000o8c8c9tr6q3yk	2026-02-27 10:15:54.936	2026-02-20 10:15:54.946	\N
+cmluqifyp000p136fyw4uu1c3	ebbb5cfe-3b1d-4d7a-9ed3-ee51052205f9	cmltcgutd000o8c8c9tr6q3yk	2026-02-27 10:15:54.947	2026-02-20 10:15:54.961	\N
+cmluqifze000r136f868nqd44	afe61586-eb50-42c4-bb73-2ada227fe814	cmltcgutd000o8c8c9tr6q3yk	2026-02-27 10:15:54.973	2026-02-20 10:15:54.979	\N
+cmluqifzl000t136foqbjl8tu	7c04d27a-3f2c-4a37-a61e-6e9d806508de	cmltcgutd000o8c8c9tr6q3yk	2026-02-27 10:15:54.989	2026-02-20 10:15:54.993	\N
+cmlv1vtd3000j130b1a7sc1r0	2b972713-e09c-42e1-af02-aa8eaf93fab5	cmltcgutd000o8c8c9tr6q3yk	2026-02-27 15:34:14.628	2026-02-20 15:34:14.631	2026-02-20 15:34:37.545
+cmluqkb5v00031ki3v7vjv3z3	9fb6d41c-392e-4792-ba31-b02868080ddd	cmlsc96wv0006hir7s083phyv	2026-02-27 10:17:22.047	2026-02-20 10:17:22.051	2026-02-20 10:32:48.085
+cmlur45pg000q1ki3iwon7r48	ae57e71b-a99c-487f-b38f-b666917ee92a	cmlsc96wv0006hir7s083phyv	2026-02-27 10:32:48.098	2026-02-20 10:32:48.1	\N
+cmlux8zgb002czuz974ukrwhk	89796759-375f-4a73-8710-03afb8f8aadc	cmlsc96wv0006hir7s083phyv	2026-02-27 13:24:30.97	2026-02-20 13:24:30.971	2026-02-20 14:15:38.697
+cmlur45ps000s1ki3il5cifli	ca010506-1bed-421e-afe6-d1854443a943	cmlsc96wv0006hir7s083phyv	2026-02-27 10:32:48.108	2026-02-20 10:32:48.112	2026-02-20 10:48:30.756
+cmlurod2w001h1ki3oq0748jn	d8f9e5ea-36b8-4759-bb92-bea364316f29	cmlsc96wv0006hir7s083phyv	2026-02-27 10:48:30.774	2026-02-20 10:48:30.777	\N
+cmlurod36001j1ki3dk51nsc9	70d73e4a-9a88-40b0-a629-47dc78048671	cmlsc96wv0006hir7s083phyv	2026-02-27 10:48:30.784	2026-02-20 10:48:30.786	\N
+cmluz2qjq002ezuz95n2rtk8u	c71bc217-1278-4f9b-9c3f-1f9b60c1a6c9	cmlsc96wv0006hir7s083phyv	2026-02-27 14:15:38.725	2026-02-20 14:15:38.726	\N
+cmlus9yk10003p057fq1ghwjk	26bc4605-3e55-4f2c-94e6-cd181b352bdf	cmlsc96wv0006hir7s083phyv	2026-02-27 11:05:18.378	2026-02-20 11:05:18.381	2026-02-20 11:20:31.783
+cmlustjco0005p057ucurkp0z	c2aac868-1b4d-479b-a670-ce43c43e6954	cmlsc96wv0006hir7s083phyv	2026-02-27 11:20:31.794	2026-02-20 11:20:31.797	\N
+cmlustjcq0007p057e5i77hyn	e81e2b1c-96b8-491b-894b-d62c0468a2c0	cmlsc96wv0006hir7s083phyv	2026-02-27 11:20:31.799	2026-02-20 11:20:31.802	\N
+cmluszl7l0003zuz9sz449pmz	98277c51-84f8-408d-b9bf-e875209dc0bb	cmlsc96wv0006hir7s083phyv	2026-02-27 11:25:14.14	2026-02-20 11:25:14.146	2026-02-20 11:41:30.949
+cmlutkixg0005zuz9m01w6h8e	9c058d3e-c60c-4199-813e-0e557d1d4495	cmlsc96wv0006hir7s083phyv	2026-02-27 11:41:30.963	2026-02-20 11:41:30.965	\N
+cmlutkixp0007zuz923vu85do	b66f5af4-32d0-49ce-a649-712f06529e89	cmlsc96wv0006hir7s083phyv	2026-02-27 11:41:30.972	2026-02-20 11:41:30.973	2026-02-20 11:44:30.765
+cmlutoqlw000dzuz9dbd3r4ho	7c8c57db-b8f7-4927-8aad-3a9dafd57222	cmltcgutd000o8c8c9tr6q3yk	2026-02-27 11:44:47.538	2026-02-20 11:44:47.54	2026-02-20 11:45:16.938
+cmlutq15q000wzuz9bvgujesj	c55fde40-f0af-430f-bba6-d98edb1dbcb9	cmlsc97mi000ahir7jy3l2o6q	2026-02-27 11:45:47.869	2026-02-20 11:45:47.87	2026-02-20 11:46:25.514
+cmlutr87z0014zuz9mhzpxzfv	e4c09980-8f8d-42b0-aeee-c22a7b48b956	cmlsc96wv0006hir7s083phyv	2026-02-27 11:46:43.678	2026-02-20 11:46:43.68	2026-02-20 11:54:00.27
+cmluuhswr001azuz94ar736bj	1a5c999a-3c03-4236-a2c8-04d8db6f71b2	cmlsc96wv0006hir7s083phyv	2026-02-27 12:07:23.546	2026-02-20 12:07:23.547	\N
+cmluujmdz001ezuz9wh67edry	c738dc5e-7db2-4f6c-a3cb-8ffc62e81082	cmlsc96wv0006hir7s083phyv	2026-02-27 12:08:48.406	2026-02-20 12:08:48.407	2026-02-20 12:08:52.391
+cmluuk394001kzuz93tg3c9vo	ec412d83-1173-4fb0-89ad-bad35b3c1ddd	cmlsc96wv0006hir7s083phyv	2026-02-27 12:09:10.262	2026-02-20 12:09:10.264	2026-02-20 12:15:34.96
+cmluusng5001qzuz9mu1lk67w	5df96b86-d36c-42da-b8f9-57e937539b1f	cmlsc96wv0006hir7s083phyv	2026-02-27 12:15:49.682	2026-02-20 12:15:49.684	2026-02-20 12:15:53.668
+cmluv276p001wzuz93bxuqfal	1a76ba56-cb2b-4e3b-a23b-d5eef12a4a35	cmlsc96wv0006hir7s083phyv	2026-02-27 12:23:15.168	2026-02-20 12:23:15.169	2026-02-20 12:38:30.864
+cmluvltra001yzuz973on7yph	6a68f07e-7d20-4c71-a8bb-58c73704c438	cmlsc96wv0006hir7s083phyv	2026-02-27 12:38:30.885	2026-02-20 12:38:30.887	\N
+cmluz2qk5002gzuz9ss87fpy5	9d38e805-6e3f-4bec-9023-8aa510ff13af	cmlsc96wv0006hir7s083phyv	2026-02-27 14:15:38.739	2026-02-20 14:15:38.74	2026-02-20 14:30:53.258
+cmluvltrf0020zuz9jegd22at	af66723c-46e6-4fd2-84ae-e416c8d94362	cmlsc96wv0006hir7s083phyv	2026-02-27 12:38:30.89	2026-02-20 12:38:30.892	2026-02-20 12:53:30.864
+cmluw548a0022zuz9xxzlviqv	dfa9b6c6-de4d-49c9-8823-8286fe769044	cmlsc96wv0006hir7s083phyv	2026-02-27 12:53:30.919	2026-02-20 12:53:30.922	\N
+cmluzmc8l002izuz92ogcn6rx	e49fcc8e-5c56-4b8b-9f66-3c2c94dee278	cmlsc96wv0006hir7s083phyv	2026-02-27 14:30:53.295	2026-02-20 14:30:53.301	\N
+cmluw548k0024zuz9g2x2sdol	ef53e96f-3adf-4848-beef-320215b2eccb	cmlsc96wv0006hir7s083phyv	2026-02-27 12:53:30.928	2026-02-20 12:53:30.932	2026-02-20 13:08:31.255
+cmluwoext0026zuz9bnn1bzyi	4f435225-f44a-42e8-b76b-3ee0dc7235e9	cmlsc96wv0006hir7s083phyv	2026-02-27 13:08:31.263	2026-02-20 13:08:31.265	\N
+cmluwoexx0028zuz9yl4y97ii	db54f48c-fdc5-4cfc-9e2a-470a3145e66a	cmlsc96wv0006hir7s083phyv	2026-02-27 13:08:31.268	2026-02-20 13:08:31.27	2026-02-20 13:24:30.914
+cmlux8zff002azuz9q3cxyxyx	39328e10-a62c-4b88-8cf4-b2d5faed372a	cmlsc96wv0006hir7s083phyv	2026-02-27 13:24:30.938	2026-02-20 13:24:30.939	\N
+cmlv1whl3000p130bz9i6w8h6	790969c1-6d01-45c0-b79e-a6b450a1af1e	cmlsc96wv0006hir7s083phyv	2026-02-27 15:34:46.022	2026-02-20 15:34:46.023	2026-02-20 15:41:15.995
+cmluzmc8x002kzuz9t43mu532	ff469774-d95e-4f6a-b812-ff1cd4846738	cmlsc96wv0006hir7s083phyv	2026-02-27 14:30:53.31	2026-02-20 14:30:53.313	2026-02-20 14:46:15.965
+cmlv06479002ozuz9tarsvnd7	5dd205ba-657a-4559-a33b-f844316436de	cmlsc96wv0006hir7s083phyv	2026-02-27 14:46:16.002	2026-02-20 14:46:16.005	\N
+cmlv06470002mzuz9dyw8yv4v	2f5480f8-31b1-42c5-ba50-4744a5073478	cmlsc96wv0006hir7s083phyv	2026-02-27 14:46:15.993	2026-02-20 14:46:15.995	2026-02-20 15:01:30.987
+cmlv0pq7s002qzuz9dixcfzk6	4e02c2ca-e30f-4088-9f92-aac94fc8e518	cmlsc96wv0006hir7s083phyv	2026-02-27 15:01:30.999	2026-02-20 15:01:31.001	\N
+cmlv0pq81002szuz9wswwmgp3	af3c1dcd-7e47-41eb-b44c-d0b5a1e16286	cmlsc96wv0006hir7s083phyv	2026-02-27 15:01:31.007	2026-02-20 15:01:31.009	2026-02-20 15:16:31.362
+cmlv190z5002uzuz932qbfg8g	0c78812a-d0f5-4410-b3e0-05105e2c8e3a	cmlsc96wv0006hir7s083phyv	2026-02-27 15:16:31.398	2026-02-20 15:16:31.409	\N
+cmlv1sjqn0003130bo9e04z84	50a1e98b-f61f-4b88-a617-bebb754d09c6	cmlsc96wv0006hir7s083phyv	2026-02-27 15:31:42.19	2026-02-20 15:31:42.191	2026-02-20 15:33:47.742
+cmlv1vmf9000f130bg570kzs1	161c254a-69de-4e33-a36c-fb1abf48a3d5	cmltcgutd000o8c8c9tr6q3yk	2026-02-27 15:34:05.632	2026-02-20 15:34:05.637	\N
+cmlv253yj0007y06x0hefbtz5	723cdad2-4938-4138-b4e4-e1c466b80f52	cmltqqrc6000b13fsnd6n9mnd	2026-02-27 15:41:28.265	2026-02-20 15:41:28.267	2026-02-20 15:42:03.608
+cmlv2632l000dy06xsw3r2mtm	d8f807f1-b0ab-42de-a374-f70357a9ffa6	cmlsc96wv0006hir7s083phyv	2026-02-27 15:42:13.772	2026-02-20 15:42:13.773	2026-02-20 15:48:51.703
+cmlv2eteb0005358f3t8p6tl3	bb23e033-2a44-4c7a-b560-7f452223d19b	cmltqqrc6000b13fsnd6n9mnd	2026-02-27 15:49:01.137	2026-02-20 15:49:01.139	2026-02-20 15:49:11.019
+cmlv2ypam000f358f5ou2w00q	0107523d-caa9-4688-b7ef-80eaaa40b419	cmlsc96wv0006hir7s083phyv	2026-02-27 16:04:28.939	2026-02-20 16:04:28.942	2026-02-20 16:06:32.221
+cmlv2fepg000b358f4uhkh22o	25eaeb62-b1ac-45b8-a415-9348f445fb8a	cmlsc96wv0006hir7s083phyv	2026-02-27 15:49:28.755	2026-02-20 15:49:28.756	2026-02-20 16:04:28.92
+cmlv2ypaa000d358f3h3ol1ao	31d62b0e-723f-49bd-aa3a-330f65e31425	cmlsc96wv0006hir7s083phyv	2026-02-27 16:04:28.929	2026-02-20 16:04:28.931	\N
+cmlv31jbg000l358fy82iuf85	56a71f43-5cfa-48e9-b9d2-c4f26c57deb7	cmltqqrc6000b13fsnd6n9mnd	2026-02-27 16:06:41.162	2026-02-20 16:06:41.164	2026-02-20 16:06:53.581
+cmlv321ic000r358fyfb12t0m	758310fc-d979-497c-907c-7f60625dc656	cmlsc96wv0006hir7s083phyv	2026-02-27 16:07:04.739	2026-02-20 16:07:04.741	2026-02-20 16:08:13.265
+cmlv33p030011358f2k1y2uxt	09276d18-d0c4-470e-8066-9897cd77e624	cmltqqrc6000b13fsnd6n9mnd	2026-02-27 16:08:21.842	2026-02-20 16:08:21.843	2026-02-20 16:08:29.288
+cmlv343dv0017358fy0dvbsac	ea0e0930-5a62-40f3-ae8d-b4f4eb8846aa	cmltcgutd000o8c8c9tr6q3yk	2026-02-27 16:08:40.478	2026-02-20 16:08:40.481	2026-02-20 16:08:56.099
+cmlv34r1k001d358fc74buzoa	8532a3e0-9f61-4efc-9233-7944fb579f98	cmltcgutd000o8c8c9tr6q3yk	2026-02-27 16:09:11.143	2026-02-20 16:09:11.144	2026-02-20 16:09:22.833
+cmlv35bm1001j358fmyn5nws5	ad5b2609-36a6-471c-88b0-4bca26a148ed	cmlsc96wv0006hir7s083phyv	2026-02-27 16:09:37.8	2026-02-20 16:09:37.802	2026-02-20 16:24:39.052
+cmlv3on24001p358f29ahsyxc	f85c0c49-9b0e-482a-9a78-49f479b6220e	cmlsc96wv0006hir7s083phyv	2026-02-27 16:24:39.096	2026-02-20 16:24:39.1	\N
+cmlv5bmm1002f358fylpwgozd	557fcc81-1a8d-45e1-81bf-6541a6d72df4	cmlsc96wv0006hir7s083phyv	2026-02-27 17:10:31.223	2026-02-20 17:10:31.225	2026-02-20 18:13:53.649
+cmlv3qpg5001t358fsdpgfzfz	a95a2f89-68c8-43bc-ae7f-ba11d95cb82b	cmlsc97mq000chir7kza21yz0	2026-02-27 16:26:15.502	2026-02-20 16:26:15.509	\N
+cmlv377qd001n358fmp9o3rte	df189eaa-1fbb-4dc3-be2a-297282898b73	cmlsc97mq000chir7kza21yz0	2026-02-27 16:11:06.084	2026-02-20 16:11:06.085	2026-02-20 16:26:15.451
+cmlv7l4lx0005tl92hub162gb	a0cd05b2-1756-46ed-8d9b-eb13f4a5cb5d	cmlsc96wv0006hir7s083phyv	2026-02-27 18:13:53.682	2026-02-20 18:13:53.685	\N
+cmlv3on26001r358fcpdktya5	d1eea64d-9857-485e-a78f-beec5a26c0e3	cmlsc96wv0006hir7s083phyv	2026-02-27 16:24:39.099	2026-02-20 16:24:39.101	2026-02-20 16:40:31.066
+cmlv491ly001x358fgg5921rs	aded9276-271b-47d5-878a-e38134681201	cmlsc96wv0006hir7s083phyv	2026-02-27 16:40:31.075	2026-02-20 16:40:31.078	\N
+cmlv3qpjf001v358f36be4t1n	6a0b6bc7-e06a-4b9a-834f-9bfaecd2d389	cmlsc97mq000chir7kza21yz0	2026-02-27 16:26:15.625	2026-02-20 16:26:15.627	2026-02-20 16:41:15.516
+cmlv49zw90021358f1erjb048	25a6a5bc-bb28-43da-971a-b41328908bbb	cmlsc97mq000chir7kza21yz0	2026-02-27 16:41:15.506	2026-02-20 16:41:15.513	\N
+cmlv7l4m90007tl92j26gk4sn	469f5e20-d095-4032-b4b3-4abed3ee627d	cmlsc96wv0006hir7s083phyv	2026-02-27 18:13:53.695	2026-02-20 18:13:53.697	2026-02-20 18:14:33.495
+cmlv4sc4f0025358fa7ye0v47	234eace6-ae98-4186-8870-b3dd1e7c98de	cmlsc96wv0006hir7s083phyv	2026-02-27 16:55:31.166	2026-02-20 16:55:31.168	\N
+cmlv491m6001z358f2reo1554	dc0ff374-7777-4272-a7b8-248a5e7516d7	cmlsc96wv0006hir7s083phyv	2026-02-27 16:40:31.085	2026-02-20 16:40:31.086	2026-02-20 16:55:31.177
+cmlv4tmdr0029358f0zsuqlvc	58dc52b2-d96c-406f-b0e8-872e65aa7dee	cmlsc97mq000chir7kza21yz0	2026-02-27 16:56:31.118	2026-02-20 16:56:31.119	\N
+cmlv49zwp0023358fmjf0urmg	3fdeec90-2cb1-49dd-88e6-efd925f124a5	cmlsc97mq000chir7kza21yz0	2026-02-27 16:41:15.528	2026-02-20 16:41:15.53	2026-02-20 16:56:31.121
+cmlv7mepb000dtl92tlw4wt4e	c34509e4-7945-4fe1-a184-15c1cdef45d4	cmltqqrc6000b13fsnd6n9mnd	2026-02-27 18:14:53.422	2026-02-20 18:14:53.423	2026-02-20 18:15:17.64
+cmlv4sc590027358ff93fo2m6	9e03317f-6d01-4fa6-adce-d055c93b68bf	cmlsc96wv0006hir7s083phyv	2026-02-27 16:55:31.193	2026-02-20 16:55:31.197	2026-02-20 17:10:31.193
+cmlv5bmlt002d358fo1s5b73e	7c91e3b8-1755-4010-bc70-ea094a5eed90	cmlsc96wv0006hir7s083phyv	2026-02-27 17:10:31.212	2026-02-20 17:10:31.215	\N
+cmlv5cwvb002h358fvp8pkequ	47c00058-edaa-4a64-b485-643753056783	cmlsc97mq000chir7kza21yz0	2026-02-27 17:11:31.173	2026-02-20 17:11:31.174	\N
+cmlv4tmeh002b358fbu7ak84y	31008cc9-00ad-41b2-a240-8882e28f8f9c	cmlsc97mq000chir7kza21yz0	2026-02-27 16:56:31.143	2026-02-20 16:56:31.145	2026-02-20 17:11:31.174
+cmlv7n4em000jtl92kxctghqp	89db4d40-c24b-4285-b003-f21ad1ec1304	cmltcgutd000o8c8c9tr6q3yk	2026-02-27 18:15:26.731	2026-02-20 18:15:26.734	2026-02-20 18:15:44.508
+cmlv5cww1002j358ffblxc26p	717f60f3-3c7b-450c-9ac8-1f71b78f4990	cmlsc97mq000chir7kza21yz0	2026-02-27 17:11:31.2	2026-02-20 17:11:31.201	2026-02-20 17:26:31.144
+cmlv5w7ay002l358f9l485bi5	040ede34-8b17-430e-a7f6-379befdd8afd	cmlsc97mq000chir7kza21yz0	2026-02-27 17:26:31.159	2026-02-20 17:26:31.162	\N
+cmlv5w7b7002n358fthbhhoem	657bea45-1356-4895-8772-310aba766cc1	cmlsc97mq000chir7kza21yz0	2026-02-27 17:26:31.169	2026-02-20 17:26:31.171	2026-02-20 17:41:31.158
+cmlv6fhrf002p358fgcqa3ztr	401fc211-d97c-412c-a298-d149b90f1b64	cmlsc97mq000chir7kza21yz0	2026-02-27 17:41:31.175	2026-02-20 17:41:31.179	\N
+cmlv8drdw0017tl9244kdumzs	72397270-8a68-4618-a1d3-0caa9aeae115	cmltqqrc6000b13fsnd6n9mnd	2026-02-27 18:36:09.571	2026-02-20 18:36:09.572	2026-02-20 18:36:25.224
+cmlv6fhrk002r358fi679hn4x	1cdd8d58-2396-4322-a5d0-81ee5aabee40	cmlsc97mq000chir7kza21yz0	2026-02-27 17:41:31.181	2026-02-20 17:41:31.182	2026-02-20 17:56:31.221
+cmlv6ys950001umirfkvpvskg	db4d7df2-6072-4d60-8d06-8ef24f3684ba	cmlsc97mq000chir7kza21yz0	2026-02-27 17:56:31.238	2026-02-20 17:56:31.239	\N
+cmlv6ys990003umirj4zyuzvp	1065e092-cdf8-441c-8681-a7032ea518ea	cmlsc97mq000chir7kza21yz0	2026-02-27 17:56:31.244	2026-02-20 17:56:31.245	2026-02-20 18:11:38.237
+cmlv7i83i0001tl922cmxam7b	e760936c-4c79-43c2-b12d-111b2b46d0c2	cmlsc97mq000chir7kza21yz0	2026-02-27 18:11:38.236	2026-02-20 18:11:38.238	\N
+cmlv8ecgz001dtl92mbux6yhy	178b86fd-9619-4768-a990-60ead505d144	cmlsc96wv0006hir7s083phyv	2026-02-27 18:36:36.896	2026-02-20 18:36:36.899	2026-02-20 18:36:52.266
+cmlv7i83x0003tl92568olfo5	dc1b6c24-315e-451c-bd41-2f0b9cdd8bbb	cmlsc97mq000chir7kza21yz0	2026-02-27 18:11:38.252	2026-02-20 18:11:38.254	2026-02-20 18:28:28.895
+cmlv83vy9000rtl926ti4xx3k	b5d164b5-66b1-4533-906f-68d25306a288	cmlsc97mq000chir7kza21yz0	2026-02-27 18:28:28.928	2026-02-20 18:28:28.93	\N
+cmlv83vyf000ttl92ujakc4uf	aa9bc741-e527-4325-88fb-f5d46c49db08	cmlsc97mq000chir7kza21yz0	2026-02-27 18:28:28.934	2026-02-20 18:28:28.935	\N
+cmlv83vyk000vtl92hhu01xwe	07580194-e53e-4e0c-be92-d9a41ba76a9a	cmlsc97mq000chir7kza21yz0	2026-02-27 18:28:28.939	2026-02-20 18:28:28.94	\N
+cmlv8eyyb001jtl92v1bxdnm4	7398c752-4e0c-40e3-8ac9-59cf9786907d	cmltqqrc6000b13fsnd6n9mnd	2026-02-27 18:37:06.034	2026-02-20 18:37:06.035	2026-02-20 18:38:28.466
+cmlv7o57z000ptl92xyo7dz3r	08bfe59d-3dae-486b-801a-82eefce6c1ed	cmlsc96wv0006hir7s083phyv	2026-02-27 18:16:14.446	2026-02-20 18:16:14.447	2026-02-20 18:31:29.2
+cmlv87r2g000ztl92q8ehq87t	2dd0fb9d-f388-44c7-9183-1d43e6e21a5f	cmlsc96wv0006hir7s083phyv	2026-02-27 18:31:29.219	2026-02-20 18:31:29.221	\N
+cmlv83vyq000xtl921cnqz0nt	ab44df52-dc8c-4661-88b2-880948323745	cmlsc97mq000chir7kza21yz0	2026-02-27 18:28:28.941	2026-02-20 18:28:28.944	2026-02-20 18:35:51.922
+cmlv8h7gl001ptl92ba0p1bfa	49751643-ac53-4649-8ee8-87b074ab384a	cmlsc96wv0006hir7s083phyv	2026-02-27 18:38:50.37	2026-02-20 18:38:50.373	2026-02-20 18:44:21.046
+cmlv8ox90001vtl92lvc8bn81	376aa95d-5265-42dc-9c9d-a810a659dec1	cmltqqrc6000b13fsnd6n9mnd	2026-02-27 18:44:50.387	2026-02-20 18:44:50.388	2026-02-20 18:45:57.957
+cmlv8qkfq0021tl926bhxpsbv	0c04ef01-8e5d-42b2-aeaa-1a0f794c2343	cmltcgutd000o8c8c9tr6q3yk	2026-02-27 18:46:07.092	2026-02-20 18:46:07.094	2026-02-20 18:47:47.14
+cmlv87r2j0011tl92019goxdp	37af0a38-68e0-48a3-b3a6-0f02ff3c4e0e	cmlsc96wv0006hir7s083phyv	2026-02-27 18:31:29.223	2026-02-20 18:31:29.227	2026-02-20 18:46:31.177
+cmlv8r31f0023tl928kqdxwgz	41e2bd27-3a47-4525-ad5f-fa9ae19db71b	cmlsc96wv0006hir7s083phyv	2026-02-27 18:46:31.202	2026-02-20 18:46:31.203	\N
+cmlv8t2sh002btl92ugvljphs	c525e739-0bec-490a-8733-a5cb19bf1479	cmltqqrc6000b13fsnd6n9mnd	2026-02-27 18:48:04.188	2026-02-20 18:48:04.194	2026-02-20 19:03:31.166
+cmlv8r31k0025tl927mqrer1g	5d7cad27-9fd4-4faa-8479-27e874402b2d	cmlsc96wv0006hir7s083phyv	2026-02-27 18:46:31.207	2026-02-20 18:46:31.208	2026-02-20 19:01:31.281
+cmlv9adk6002dtl92kmdjkxp2	024ec010-c3ca-4d5f-80e0-4257b8c79159	cmlsc96wv0006hir7s083phyv	2026-02-27 19:01:31.299	2026-02-20 19:01:31.3	\N
+cmlv9cy2t002htl92mld5vb05	79981667-f74d-4812-b932-a6a514349530	cmltqqrc6000b13fsnd6n9mnd	2026-02-27 19:03:31.202	2026-02-20 19:03:31.205	\N
+cmlv9adk7002ftl92r963mbch	6f0de155-5da8-44c7-be3c-26da5e0099ad	cmlsc96wv0006hir7s083phyv	2026-02-27 19:01:31.301	2026-02-20 19:01:31.303	2026-02-20 19:16:31.258
+cmlv9to0e002jtl9260ixhded	dda0a852-f9d0-4ed3-86f8-0ad6f2977c3a	cmlsc96wv0006hir7s083phyv	2026-02-27 19:16:31.3	2026-02-20 19:16:31.308	\N
+cmlv9to0t002ltl92bq1qahmv	e1638157-e70f-4570-a4e1-f442ae1e70ab	cmlsc96wv0006hir7s083phyv	2026-02-27 19:16:31.312	2026-02-20 19:16:31.322	2026-02-23 09:04:31.62
+cmlyya6xb002ntl92lkwnpjxv	680ab9db-81c8-4e09-b15a-e857e55d3ea7	cmlsc96wv0006hir7s083phyv	2026-03-02 09:04:31.63	2026-02-23 09:04:31.631	\N
+cmlz5kxwm0011owvbd2e7pkyr	28f85cb6-e4c4-4645-b80e-f08366d831a7	cmltcgutd000o8c8c9tr6q3yk	2026-03-02 12:28:50.469	2026-02-23 12:28:50.47	2026-02-23 12:44:34.701
+cmlyya6xh002ptl92e01yin7i	9ee1632f-3efb-460b-9f97-548be02e17c4	cmlsc96wv0006hir7s083phyv	2026-03-02 09:04:31.636	2026-02-23 09:04:31.637	2026-02-23 09:19:34.439
+cmlyytjjh002vtl92vbxdhyoz	1e468ae7-59d2-4182-9377-b493930438ed	cmlsc96wv0006hir7s083phyv	2026-03-02 09:19:34.443	2026-02-23 09:19:34.445	\N
+cmlyyalqp002ttl92nam9hoej	e635fd45-f543-49cc-838a-198c6921ce45	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 09:04:50.832	2026-02-23 09:04:50.833	2026-02-23 09:20:01.577
+cmlyyu4j5002ztl92xqje7adw	ec13e738-7673-4e33-812c-71c9a9ad7511	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 09:20:01.611	2026-02-23 09:20:01.649	\N
+cmlz4mkb5002b10n67lfqp030	ced2a69f-20d7-4439-80a2-3cb496a17270	cmlsc96wv0006hir7s083phyv	2026-03-02 12:02:06.539	2026-02-23 12:02:06.545	2026-02-23 12:17:34.609
+cmlyytjjq002xtl92dl8jv9hk	05811877-eb40-49d0-9c2b-1f154eb65a8d	cmlsc96wv0006hir7s083phyv	2026-03-02 09:19:34.453	2026-02-23 09:19:34.454	2026-02-23 09:34:34.453
+cmlyzcu0r0031tl92q7gnlara	aee78f31-f474-4a78-86c4-a7361ac14019	cmlsc96wv0006hir7s083phyv	2026-03-02 09:34:34.486	2026-02-23 09:34:34.49	\N
+cmlz56gf30007owvbddn6w5z4	a8331edc-1e5d-4085-abf3-4304ad1538e9	cmlsc96wv0006hir7s083phyv	2026-03-02 12:17:34.62	2026-02-23 12:17:34.623	\N
+cmlz56gfc0009owvbjiwwxczg	6b6af1f7-ddd6-4052-b13f-24676e5e0928	cmlsc96wv0006hir7s083phyv	2026-03-02 12:17:34.631	2026-02-23 12:17:34.632	2026-02-23 12:25:40.784
+cmlyzcu0z0033tl92z6f6u64a	650a1d8e-2e23-4378-8dab-2d368374effb	cmlsc96wv0006hir7s083phyv	2026-03-02 09:34:34.498	2026-02-23 09:34:34.499	2026-02-23 09:49:38.066
+cmlyzw799001qada1j40zqrnq	10a283ac-18dc-4514-8759-e3c568050297	cmlsc96wv0006hir7s083phyv	2026-03-02 09:49:38.107	2026-02-23 09:49:38.109	\N
+cmlyzw79i001sada15h8srsaj	8678f3b7-b8d7-4f2d-9af0-8383d58593ff	cmlsc96wv0006hir7s083phyv	2026-03-02 09:49:38.116	2026-02-23 09:49:38.118	\N
+cmlyzw79r001uada14ygqgk6n	55860df3-a366-41b8-817b-aeae342bd944	cmlsc96wv0006hir7s083phyv	2026-03-02 09:49:38.125	2026-02-23 09:49:38.127	\N
+cmlyzw79z001wada1tkbevv4u	d33d32b4-1988-4b0f-8285-45d6a68c28f7	cmlsc96wv0006hir7s083phyv	2026-03-02 09:49:38.13	2026-02-23 09:49:38.136	\N
+cmlyzw7a4001yada1lkaqlejb	81733aac-b9db-49b3-9054-ee8e535fbd33	cmlsc96wv0006hir7s083phyv	2026-03-02 09:49:38.138	2026-02-23 09:49:38.14	\N
+cmlz5heh6000fowvb2i0sfhib	4dd36f63-a317-4d29-9a67-9429347b6295	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 12:26:05.319	2026-02-23 12:26:05.321	2026-02-23 12:26:38.604
+cmlyzwj400022ada1fgiq9bwg	bc575a01-464c-4a90-8714-c467b9fa3fc2	cmlsc96wv0006hir7s083phyv	2026-03-02 09:49:53.47	2026-02-23 09:49:53.472	2026-02-23 10:04:54.509
+cmlz0fud8003wada121lcmt6z	ef03af58-b709-4634-afe8-62894443adb0	cmlsc96wv0006hir7s083phyv	2026-03-02 10:04:54.519	2026-02-23 10:04:54.523	\N
+cmlz0fudj003yada1sb5dc0zd	9a69e73e-47e5-4598-9af8-00a310de3b22	cmlsc96wv0006hir7s083phyv	2026-03-02 10:04:54.534	2026-02-23 10:04:54.535	\N
+cmlz3v3r2000c10n6av9xdfmx	334cc31c-1bf9-4ed7-93ce-880f867ec67f	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 11:40:45.372	2026-02-23 11:40:45.374	2026-02-23 11:41:23.642
+cmlz3wa1a000i10n6ms0or528	b2b3ac92-4025-4c67-81c3-1d58b226a083	cmlsc96wv0006hir7s083phyv	2026-03-02 11:41:40.173	2026-02-23 11:41:40.174	2026-02-23 11:42:03.19
+cmlz3oeht000310n6wz0nz7uy	88d15b0b-c657-4b38-8863-e9fea43931ca	cmlsc96wv0006hir7s083phyv	2026-03-02 11:35:32.7	2026-02-23 11:35:32.705	2026-02-23 11:43:31.905
+cmlz3yvqo000u10n6nntequu5	18aaff22-f2b2-4ee8-856a-1c1f3d3d7cce	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 11:43:41.614	2026-02-23 11:43:41.616	2026-02-23 11:45:36.914
+cmlz41ml5001010n6e7wq92n3	43b5d064-4e9b-4187-a681-4cd644c2d6a1	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 11:45:49.718	2026-02-23 11:45:49.72	2026-02-23 11:45:58.143
+cmlz426xf001610n6rprm8gpt	73bca5f1-65be-4938-8ac7-7089d78b17f8	cmltcgutd000o8c8c9tr6q3yk	2026-03-02 11:46:16.082	2026-02-23 11:46:16.083	2026-02-23 11:46:26.237
+cmlz3x0jc000o10n6mrxhtytr	0a857310-a108-4955-a6c7-027919e692bf	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 11:42:14.519	2026-02-23 11:42:14.52	2026-02-23 11:57:34.65
+cmlz4gqk3001e10n6zjt4m69e	c7bc103c-907f-4065-8532-ad317baa2756	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 11:57:34.7	2026-02-23 11:57:34.702	\N
+cmlz5ibok000lowvbpud1tqwd	b1bf6710-d9dd-41c9-9a37-065e9a276be9	cmltcgutd000o8c8c9tr6q3yk	2026-03-02 12:26:48.355	2026-02-23 12:26:48.356	2026-02-23 12:27:25.481
+cmlz439ke001c10n6519ij5e2	f0af6766-0991-454e-bd23-45c1a21c8f73	cmlsc96wv0006hir7s083phyv	2026-03-02 11:47:06.157	2026-02-23 11:47:06.159	2026-02-23 12:02:06.524
+cmlz4mkaw002910n6cxej5680	177ad48f-adca-4e8c-8e74-4ae0b2e4e5c0	cmlsc96wv0006hir7s083phyv	2026-03-02 12:02:06.535	2026-02-23 12:02:06.536	\N
+cmlz4gqk6001g10n61q0kajxf	69725a37-6ba6-43d8-821f-fe95003c313f	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 11:57:34.704	2026-02-23 11:57:34.71	2026-02-23 12:12:34.783
+cmlz5013j0005owvbq8jr3c3h	9bd42105-03c8-4f5a-b4b9-359f2ca3858c	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 12:12:34.83	2026-02-23 12:12:34.831	\N
+cmlz5013c0003owvbwqrf89pn	db62bf25-49e9-4e62-aded-f1c87bdb4d17	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 12:12:34.823	2026-02-23 12:12:34.824	2026-02-23 12:27:34.608
+cmlz5jbdp000powvbwzgu5qez	3be532e9-5ff0-4a5c-86c4-b5b381814898	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 12:27:34.619	2026-02-23 12:27:34.621	\N
+cmlz5jdhk000vowvb2n70e6hw	91205ec7-154e-4dfd-95cc-74be95e9f431	cmlsc96wv0006hir7s083phyv	2026-03-02 12:27:37.35	2026-02-23 12:27:37.352	2026-02-23 12:28:42.46
+cmlz756s7001jowvbk6i8v15m	cbb86903-5110-4b81-a18e-50ef0e973c0d	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 13:12:34.707	2026-02-23 13:12:34.711	\N
+cmlz5jbdx000rowvbsazgbo3r	262a8f93-d8c0-4c03-9914-e1b46e5a9578	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 12:27:34.627	2026-02-23 12:27:34.629	2026-02-23 12:42:34.676
+cmlz62lvx0013owvb2jzz96k7	babe7c23-5a38-4ffe-96a0-b31ebcaefeca	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 12:42:34.699	2026-02-23 12:42:34.701	\N
+cmlz6lwdi001dowvbtk2r3y6j	6ab8478d-1a26-48a2-9286-1f899c95c476	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 12:57:34.755	2026-02-23 12:57:34.759	2026-02-23 13:12:34.714
+cmlz656h70017owvbffsnidle	d256667d-f16f-41a7-85f2-48a9063e3a48	cmltcgutd000o8c8c9tr6q3yk	2026-03-02 12:44:34.696	2026-02-23 12:44:34.699	\N
+cmlz62lw80015owvb3u1m38ue	15db7df0-66e1-4ef5-8101-31779fe2ef86	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 12:42:34.711	2026-02-23 12:42:34.712	2026-02-23 12:57:34.722
+cmlz6lwd5001bowvbddlwdhk7	96ad8a35-dc0a-42ef-a9d7-7b4a94e58640	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 12:57:34.738	2026-02-23 12:57:34.742	\N
+cmlz656hx0019owvb0msokug2	045ff10d-acc5-45b6-83e9-7bf990bb7f67	cmltcgutd000o8c8c9tr6q3yk	2026-03-02 12:44:34.723	2026-02-23 12:44:34.724	2026-02-23 12:59:34.931
+cmlz6oh5c001fowvbswl7muf3	748638a6-7bfe-46ce-a7b4-42378c1e3caf	cmltcgutd000o8c8c9tr6q3yk	2026-03-02 12:59:34.99	2026-02-23 12:59:34.992	\N
+cmlz791ou001powvbcneitbtb	5421d7ee-f31f-4037-a38f-eef4afbc10f2	cmltcgutd000o8c8c9tr6q3yk	2026-03-02 13:15:34.733	2026-02-23 13:15:34.735	2026-02-23 13:30:34.678
+cmlz6oh5m001howvb4qcs14jx	c3564ff5-ecb5-4714-9637-331e51bad2e7	cmltcgutd000o8c8c9tr6q3yk	2026-03-02 12:59:35.001	2026-02-23 12:59:35.003	2026-02-23 13:15:34.706
+cmlz791oj001nowvbocdexthg	1fec9a0e-1df5-478d-90cf-5ebe16e82bf8	cmltcgutd000o8c8c9tr6q3yk	2026-03-02 13:15:34.718	2026-02-23 13:15:34.722	\N
+cmlz7sc3k001rowvbi4jxo1x7	cb0efc70-bc60-44ee-904e-a2200a4f1b9d	cmltcgutd000o8c8c9tr6q3yk	2026-03-02 13:30:34.683	2026-02-23 13:30:34.688	\N
+cmlz8wz06001vowvbfp03eol3	05404fff-a6de-4897-9e14-007d0f23cfe9	cmltcgutd000o8c8c9tr6q3yk	2026-03-02 14:02:10.611	2026-02-23 14:02:10.614	\N
+cmlz7sc3w001towvbcqay36di	b7d4f1dd-04e1-43fe-90bb-3c743e567f48	cmltcgutd000o8c8c9tr6q3yk	2026-03-02 13:30:34.698	2026-02-23 13:30:34.7	2026-02-23 14:02:10.619
+cmlz9g9ny001zowvb1xxzr7jg	36f3a87f-2619-44e5-bc3c-e6e434a84316	cmltcgutd000o8c8c9tr6q3yk	2026-03-02 14:17:10.886	2026-02-23 14:17:10.893	\N
+cmlz8wz19001xowvbofiavltk	338f7740-8036-4601-b540-24a5a305e3b8	cmltcgutd000o8c8c9tr6q3yk	2026-03-02 14:02:10.651	2026-02-23 14:02:10.652	2026-02-23 14:17:10.947
+cmlzhyus7001i9za3yie1r6e1	92d3ddab-2411-40e7-8fd7-e3ebf40f3c1b	cmlsc96wv0006hir7s083phyv	2026-03-02 18:15:34.991	2026-02-23 18:15:34.999	2026-02-23 18:31:35.091
+cmlza1d06000112kp0ytazqhd	08e32568-df48-4703-aea3-0e195da67557	cmlsc96wv0006hir7s083phyv	2026-03-02 14:33:34.996	2026-02-23 14:33:34.998	\N
+cmlz9gis80025owvblmoa6qu9	c0bb07a7-d525-4957-813e-37c54d6fc6ee	cmlsc96wv0006hir7s083phyv	2026-03-02 14:17:22.711	2026-02-23 14:17:22.712	2026-02-23 14:33:35.003
+cmlza1d0x000312kp1xfdyb0t	da2bcd37-5578-4081-bce3-4f72f9e72c5d	cmlsc96wv0006hir7s083phyv	2026-03-02 14:33:35.021	2026-02-23 14:33:35.024	\N
+cmlz756v8001lowvbimg8rtun	08c08602-3078-4cc3-a922-758f2c541e4c	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 13:12:34.819	2026-02-23 13:12:34.821	2026-02-23 14:47:27.285
+cmlzaj784001p12kpih4vogar	97c7a8f0-cc7c-4be3-95ef-e01b1f1e4282	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 14:47:27.314	2026-02-23 14:47:27.316	\N
+cmlzfy2sh001w1qkbqmbuxtx2	1673b15d-e3aa-438d-9c3f-a6bf02e4ce66	cmlsc97nb000ghir7duuqmeij	2026-03-02 17:18:59.488	2026-02-23 17:18:59.49	2026-02-23 17:34:09.613
+cmlzaj78m001r12kpxo586hgb	e072e4ce-d8d6-4310-8734-b9c85301dd65	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 14:47:27.332	2026-02-23 14:47:27.334	2026-02-23 15:02:46.895
+cmlzb2wsm0005l7k4az2a5dqw	6441d353-9dae-4236-8f8f-ff3900ee57ca	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 15:02:46.917	2026-02-23 15:02:46.919	\N
+cmlzb2wsu0007l7k4bepldp49	4f063dc4-c8fc-435c-830f-ec1abf845b18	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 15:02:46.923	2026-02-23 15:02:46.927	\N
+cmlzceyk80003pv2mya69iit8	bb824f85-c5fc-413e-bfc8-50ca42947d0b	cmlsc96wv0006hir7s083phyv	2026-03-02 15:40:08.684	2026-02-23 15:40:08.696	\N
+cmlzghl40001y1qkbcu3avebq	3e356522-da7c-4a32-9b1a-44daa36bf4f1	cmlsc97nb000ghir7duuqmeij	2026-03-02 17:34:09.686	2026-02-23 17:34:09.696	\N
+cmlzghl4300201qkbm7mvgyau	de6d0e88-27c2-42a8-a655-0060dd14e56f	cmlsc97nb000ghir7duuqmeij	2026-03-02 17:34:09.689	2026-02-23 17:34:09.699	\N
+cmlzgidkr00241qkbunzxmlj5	8ae00356-af8e-4105-b3fc-5c9d804d7d1d	cmlsc96wv0006hir7s083phyv	2026-03-02 17:34:46.586	2026-02-23 17:34:46.588	\N
+cmlzcu8t100031qkbnvciw5mm	a7dffb8c-633e-4c42-a6f3-3679eb3c9422	cmlsc96wv0006hir7s083phyv	2026-03-02 15:52:01.805	2026-02-23 15:52:01.813	2026-02-23 16:07:01.449
+cmlzddj0y00091qkbbyqpuqys	c5997462-a2cd-4985-ac58-cdd805fb3a37	cmlsc96wv0006hir7s083phyv	2026-03-02 16:07:01.519	2026-02-23 16:07:01.522	\N
+cmlzddj0x00071qkbi5kuqxvu	37847b25-522d-4c06-a7dd-d23d58bd44a6	cmlsc96wv0006hir7s083phyv	2026-03-02 16:07:01.516	2026-02-23 16:07:01.521	\N
+cmlzddj14000b1qkbsgcwpgob	146b2518-f9e1-49c5-90e2-ed57148b6a0d	cmlsc96wv0006hir7s083phyv	2026-03-02 16:07:01.524	2026-02-23 16:07:01.527	\N
+cmlzddj33000d1qkble2dximb	d2be94b0-819f-4005-8b5f-3bab792fd261	cmlsc96wv0006hir7s083phyv	2026-03-02 16:07:01.531	2026-02-23 16:07:01.537	\N
+cmlzddj3j000f1qkb1n4n0zdh	2a049897-f443-4757-b034-5fb084cb5331	cmlsc96wv0006hir7s083phyv	2026-03-02 16:07:01.539	2026-02-23 16:07:01.541	\N
+cmlzgvjq900039za3h4v94rek	692f28bf-47c2-4362-8840-7d4cf161d01a	cmlsc96wv0006hir7s083phyv	2026-03-02 17:45:01.088	2026-02-23 17:45:01.09	2026-02-23 17:46:26.586
+cmlzgxq1z00099za3yx67yz0r	85f1ccec-0e85-437f-9f5c-6ac36c755f05	cmlsc97nb000ghir7duuqmeij	2026-03-02 17:46:42.596	2026-02-23 17:46:42.599	2026-02-23 17:47:11.599
+cmlzdekeb000j1qkb0ym92by1	346440ca-cb8d-410a-b51e-2582004e8350	cmlsc96wv0006hir7s083phyv	2026-03-02 16:07:49.953	2026-02-23 16:07:49.955	2026-02-23 16:23:03.234
+cmlzdy55k000q1qkbrlscur36	1d906820-7b50-4245-9cbb-105592e50041	cmlsc96wv0006hir7s083phyv	2026-03-02 16:23:03.318	2026-02-23 16:23:03.32	\N
+cmlzdy565000s1qkbyc9ynd80	0d6df692-e06d-41ad-8da6-5e4fb7af98e2	cmlsc96wv0006hir7s083phyv	2026-03-02 16:23:03.339	2026-02-23 16:23:03.341	\N
+cmlzdy56n000u1qkbd4k7h26r	d5150c2f-b642-467a-9e2f-116d3d09662f	cmlsc96wv0006hir7s083phyv	2026-03-02 16:23:03.355	2026-02-23 16:23:03.359	\N
+cmlzdy56x000w1qkb71q08thj	f1a9a337-3ccc-4647-8621-4375b72813f9	cmlsc96wv0006hir7s083phyv	2026-03-02 16:23:03.363	2026-02-23 16:23:03.369	\N
+cmlzdyfep00101qkb561jsd29	54216cf7-a98d-4243-b927-e78acea8758d	cmlsc96wv0006hir7s083phyv	2026-03-02 16:23:16.607	2026-02-23 16:23:16.609	2026-02-23 16:38:17.277
+cmlzehqe900141qkb2alu99hg	296247d6-a147-4eef-a738-efe2873c5a2e	cmlsc96wv0006hir7s083phyv	2026-03-02 16:38:17.311	2026-02-23 16:38:17.312	\N
+cmlzgymce000f9za3o4dzckqh	acd6374c-72e3-434d-9e4a-0e86b19bc7c7	cmlsc96wv0006hir7s083phyv	2026-03-02 17:47:24.44	2026-02-23 17:47:24.446	2026-02-23 17:48:46.77
+cmlzehqel00161qkbncex3kvi	5346474e-5b7e-434a-b0ab-45d15bc886c2	cmlsc96wv0006hir7s083phyv	2026-03-02 16:38:17.32	2026-02-23 16:38:17.325	2026-02-23 16:53:34.876
+cmlzf1efr001a1qkb44cf3cif	e96a810e-96e3-4170-a828-d4f877512475	cmlsc96wv0006hir7s083phyv	2026-03-02 16:53:34.93	2026-02-23 16:53:34.934	\N
+cmlzfkow7001c1qkbnrq9bf3i	9b97be8d-fa46-426d-b330-93d0fc9950a7	cmlsc96wv0006hir7s083phyv	2026-03-02 17:08:34.947	2026-02-23 17:08:34.949	\N
+cmlzf1eez00181qkbnmzemzkp	985d3810-11f0-41ee-a732-c0c56321e45e	cmlsc96wv0006hir7s083phyv	2026-03-02 16:53:34.904	2026-02-23 16:53:34.907	2026-02-23 17:08:34.977
+cmlzfkoxk001e1qkb8i420gzk	5909e3ae-dfc7-43fb-aab6-2224bcc0c268	cmlsc96wv0006hir7s083phyv	2026-03-02 17:08:34.998	2026-02-23 17:08:35	2026-02-23 17:17:45.701
+cmlzfwpqq001k1qkbhfcmcx6m	54b50860-20d6-4f00-99db-4e27a6395387	cmlsc97nb000ghir7duuqmeij	2026-03-02 17:17:55.921	2026-02-23 17:17:55.922	2026-02-23 17:18:27.468
+cmlzfxm68001q1qkb3ol1g3ro	e887d79b-e678-4e07-951f-ebfc29630548	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 17:18:37.951	2026-02-23 17:18:37.952	2026-02-23 17:18:52.082
+cmlzh0ml3000l9za34o32lvtv	0f4a6c4a-1cfe-4c02-b01f-f16a1ccf86c6	cmltqqrc6000b13fsnd6n9mnd	2026-03-02 17:48:58.064	2026-02-23 17:48:58.069	2026-02-23 17:50:19.856
+cmlzh2li5000w9za3uot7q3x1	ba0e0808-e65c-4cf1-9eff-78b153b3d954	cmltcgutd000o8c8c9tr6q3yk	2026-03-02 17:50:29.979	2026-02-23 17:50:29.981	2026-02-23 18:00:05.166
+cmlzijfm2001k9za30sgb51h2	0dcb7bc6-ebee-4af1-90fb-cdf21c97246e	cmlsc96wv0006hir7s083phyv	2026-03-02 18:31:35.11	2026-02-23 18:31:35.114	\N
+cmlzhfcfs00129za3up86hmxk	330bc232-4620-4d54-8dd1-c64ee88ef709	cmlsc96wv0006hir7s083phyv	2026-03-02 18:00:24.758	2026-02-23 18:00:24.76	2026-02-23 18:15:34.96
+cmlzhyurx001g9za35qir5fqr	ccbc89b1-5362-4e51-8336-e38242819db1	cmlsc96wv0006hir7s083phyv	2026-03-02 18:15:34.986	2026-02-23 18:15:34.988	\N
+cmlzjol12001u9za31fnk2lku	377d545d-77cf-4dd9-8f51-f9fc50c159cb	cmlsc96wv0006hir7s083phyv	2026-03-02 19:03:35.023	2026-02-23 19:03:35.028	2026-02-23 19:19:35.005
+cmlzijfmc001m9za3ziwe8sz1	227766d2-920e-43f1-bb05-4fd377fd0e85	cmlsc96wv0006hir7s083phyv	2026-03-02 18:31:35.122	2026-02-23 18:31:35.123	2026-02-23 18:47:35.019
+cmlzj40b8001o9za38tg9o8ld	662585a1-9951-4313-a099-cde3c35fcedc	cmlsc96wv0006hir7s083phyv	2026-03-02 18:47:35.058	2026-02-23 18:47:35.06	\N
+cmlzk95rf001w9za3ho9ij969	94ed9db8-358f-4b57-a06d-c5f3f9b861b3	cmlsc96wv0006hir7s083phyv	2026-03-02 19:19:35.018	2026-02-23 19:19:35.019	\N
+cmlzj40bl001q9za3mihqenl6	f6b9546a-8377-4417-b703-0c92aee278bf	cmlsc96wv0006hir7s083phyv	2026-03-02 18:47:35.071	2026-02-23 18:47:35.073	2026-02-23 19:03:35.007
+cmlzjol0s001s9za36s37itd1	b5747243-ba4b-4d27-b5f0-67b0f2da9635	cmlsc96wv0006hir7s083phyv	2026-03-02 19:03:35.016	2026-02-23 19:03:35.02	\N
+cmm0e7m4w00209za325254y3t	2e8eec01-0954-4f32-bd55-6e4ab0614783	cmlsc96wv0006hir7s083phyv	2026-03-03 09:18:11.403	2026-02-24 09:18:11.408	\N
+cmlzk95rp001y9za324s02m8n	1ea16e6e-8ddf-4eb5-a3a3-9382511190e6	cmlsc96wv0006hir7s083phyv	2026-03-02 19:19:35.028	2026-02-23 19:19:35.029	2026-02-24 09:18:11.361
+cmm0e7m8d00229za3ag0yceub	37c995aa-fe0b-4a35-bd5f-040509cda249	cmlsc96wv0006hir7s083phyv	2026-03-03 09:18:11.53	2026-02-24 09:18:11.532	2026-02-24 09:33:36.259
+cmm0erftd00269za3iqu4n8bq	b75818f5-de51-4cec-af08-23e7b978b120	cmlsc96wv0006hir7s083phyv	2026-03-03 09:33:36.327	2026-02-24 09:33:36.335	\N
+cmm0erfs600249za3c9kian7q	5be30436-ec91-49d3-abf4-af88f580585c	cmlsc96wv0006hir7s083phyv	2026-03-03 09:33:36.28	2026-02-24 09:33:36.294	2026-02-24 09:49:35.755
+cmm0fc04700289za3e773ewzl	11ef1ffd-8636-4f08-9e78-69a07f949d48	cmlsc96wv0006hir7s083phyv	2026-03-03 09:49:35.765	2026-02-24 09:49:35.767	\N
+cmm0fc054002a9za35hxlw2mk	23dae918-8188-494e-920d-709db545a958	cmlsc96wv0006hir7s083phyv	2026-03-03 09:49:35.799	2026-02-24 09:49:35.8	\N
+cmm0pzgo6001h60vqbh7yz9tb	0bfa9989-9bc0-496e-9b0d-51279e4a6fe8	cmltqqrc6000b13fsnd6n9mnd	2026-03-03 14:47:46.468	2026-02-24 14:47:46.47	2026-02-24 15:03:36.177
+cmm0hl1tf002e9za3h9548l94	52b49448-3c61-4feb-a090-e0603d00b91d	cmlsc96wv0006hir7s083phyv	2026-03-03 10:52:37.104	2026-02-24 10:52:37.106	2026-02-24 11:08:35.829
+cmm0i5llb002g9za3qrt8gdth	8d8f7eb5-e267-4e04-a5c8-3a070d19cc4f	cmlsc96wv0006hir7s083phyv	2026-03-03 11:08:35.853	2026-02-24 11:08:35.854	\N
+cmm0qjti7001j60vqlr7v0gyu	0ae62c9d-7135-4716-be7f-b11adcc35dd8	cmltqqrc6000b13fsnd6n9mnd	2026-03-03 15:03:36.218	2026-02-24 15:03:36.221	\N
+cmm0i5llo002i9za37h9y9f3t	496d1a88-0653-46c7-b101-49618003e8f8	cmlsc96wv0006hir7s083phyv	2026-03-03 11:08:35.86	2026-02-24 11:08:35.868	2026-02-24 11:23:38.186
+cmm0ioxuu002m9za3c0gqvd4b	12eee3c8-8730-4854-bde0-0f43bc5ec150	cmlsc96wv0006hir7s083phyv	2026-03-03 11:23:38.21	2026-02-24 11:23:38.213	\N
+cmm0ioxus002k9za3gyn4v174	49e29e62-5650-46f0-b358-72061645c8e1	cmlsc96wv0006hir7s083phyv	2026-03-03 11:23:38.206	2026-02-24 11:23:38.21	2026-02-24 11:39:35.852
+cmm0j9gsi002o9za338fjmltl	a8381bf1-f64b-43b1-845a-a7aecb94fa7f	cmlsc96wv0006hir7s083phyv	2026-03-03 11:39:35.873	2026-02-24 11:39:35.874	\N
+cmm0j9gsz002q9za3wmg0wxfl	cc6aaf91-8c75-4ec1-bc86-d8cd060164c1	cmlsc96wv0006hir7s083phyv	2026-03-03 11:39:35.89	2026-02-24 11:39:35.891	\N
+cmm0km10400038gmdgej9t30l	3cfc3d24-0c30-48d4-9fe2-c8397bdca426	cmlsc96wv0006hir7s083phyv	2026-03-03 12:17:21.554	2026-02-24 12:17:21.556	\N
+cmm0qjtip001l60vqmvda12hm	d07b2ed6-281e-40d6-83f7-4f50854c63c3	cmltqqrc6000b13fsnd6n9mnd	2026-03-03 15:03:36.236	2026-02-24 15:03:36.241	2026-02-24 15:18:36.117
+cmm0l3zgj000360vqgtlrjayn	f8514231-c6ca-4c75-9bea-2333f0dc25a2	cmlsc96wv0006hir7s083phyv	2026-03-03 12:31:19.361	2026-02-24 12:31:19.363	2026-02-24 12:46:35.95
+cmm0lnmq9000560vqjmtdlkwu	f8fb2f2a-6073-47e4-98df-4e1e0283f7ff	cmlsc96wv0006hir7s083phyv	2026-03-03 12:46:35.98	2026-02-24 12:46:35.985	\N
+cmm0r33wx001n60vq51sjt7mz	c2177d6b-fbf6-440d-963a-4921cc0ca51d	cmltqqrc6000b13fsnd6n9mnd	2026-03-03 15:18:36.175	2026-02-24 15:18:36.177	\N
+cmm0lnmqu000760vq9cx53naw	f990c391-7a01-41e9-8886-84f7cb13a696	cmlsc96wv0006hir7s083phyv	2026-03-03 12:46:36.004	2026-02-24 12:46:36.007	2026-02-24 13:02:35.935
+cmm0m87gj000960vqiszv82us	eb5afd15-10a4-4e1c-8a88-6ed287342f62	cmlsc96wv0006hir7s083phyv	2026-03-03 13:02:35.968	2026-02-24 13:02:35.971	\N
+cmm0m87gw000b60vqxqygv2yh	02133403-6f90-4ec0-adf9-ec161631af0f	cmlsc96wv0006hir7s083phyv	2026-03-03 13:02:35.972	2026-02-24 13:02:35.98	2026-02-24 13:17:35.961
+cmm0mrhxl000f60vq9d9hcvp7	fdd56881-e633-4fbb-b027-8828c4b63e5e	cmlsc96wv0006hir7s083phyv	2026-03-03 13:17:36.006	2026-02-24 13:17:36.009	\N
+cmm0mrhxh000d60vq3fts1puw	7efec673-a3d5-4ceb-8064-94802e714c95	cmlsc96wv0006hir7s083phyv	2026-03-03 13:17:36.001	2026-02-24 13:17:36.005	2026-02-24 14:06:02.301
+cmm0ohsga000h60vqo2ciodph	c0feb93d-d9de-443f-b18b-41af1d045545	cmlsc96wv0006hir7s083phyv	2026-03-03 14:06:02.312	2026-02-24 14:06:02.314	\N
+cmm0ta5l9001r60vqa19f1g6g	1af8996f-fff4-4d41-a256-bb5960483d38	cmlsc96wv0006hir7s083phyv	2026-03-03 16:20:04.172	2026-02-24 16:20:04.173	2026-02-24 16:35:36.138
+cmm0tu4pi001y60vqr1d3kmji	9e880c1d-6ace-4c72-81f6-b8f52ccdeecc	cmlsc96wv0006hir7s083phyv	2026-03-03 16:35:36.147	2026-02-24 16:35:36.15	\N
+cmm0tu4q0002060vqofodglnj	c907a06a-637b-4418-89e8-91d931ea1e31	cmlsc96wv0006hir7s083phyv	2026-03-03 16:35:36.166	2026-02-24 16:35:36.168	\N
+cmm0ohsgo000j60vqh71fcsp5	6a765571-20c8-4736-8b7e-3594dbfa9dac	cmlsc96wv0006hir7s083phyv	2026-03-03 14:06:02.325	2026-02-24 14:06:02.328	2026-02-24 14:21:16.015
+cmm0p1dhy000p60vqt3gvieuc	70ffd39e-ea25-4fe0-87aa-5d4e482eb55e	cmlsc96wv0006hir7s083phyv	2026-03-03 14:21:16.046	2026-02-24 14:21:16.054	\N
+cmm0p1di2000r60vq1sk9r92n	1b69ebab-96de-4f66-9532-b40b1c506c8f	cmlsc96wv0006hir7s083phyv	2026-03-03 14:21:16.057	2026-02-24 14:21:16.058	\N
+cmm0p1di8000t60vqqs6n41l7	7c90ea1e-abab-4cea-92ab-a11227a11952	cmlsc96wv0006hir7s083phyv	2026-03-03 14:21:16.06	2026-02-24 14:21:16.064	\N
+cmm0p1dig000v60vq6ath5264	e45bda43-1743-4051-8595-53990dce6ac6	cmlsc96wv0006hir7s083phyv	2026-03-03 14:21:16.065	2026-02-24 14:21:16.068	\N
+cmm0p1diq000x60vqznli5t0c	8c34f4d3-aecc-489c-8d00-4fa4ff045593	cmlsc96wv0006hir7s083phyv	2026-03-03 14:21:16.069	2026-02-24 14:21:16.07	\N
+cmm0p1dit000z60vqd20gg8hd	cb08244f-af20-410f-a823-75fd41b54a19	cmlsc96wv0006hir7s083phyv	2026-03-03 14:21:16.07	2026-02-24 14:21:16.071	2026-02-24 14:30:11.696
+cmm0pdfv7001760vqjahonagb	f630454c-edb4-482f-80f7-613cf593db1b	cmltqqrc6000b13fsnd6n9mnd	2026-03-03 14:30:38.993	2026-02-24 14:30:38.995	2026-02-24 14:46:36.053
+cmm0pxyef001b60vq3g0kv2ly	5521509d-f837-4663-8147-0f4abc06912d	cmltqqrc6000b13fsnd6n9mnd	2026-03-03 14:46:36.132	2026-02-24 14:46:36.135	\N
+cmm0pxydi001960vq2e7lpw0v	a5d719a7-4626-4fb2-a3b8-49a695d3c93d	cmltqqrc6000b13fsnd6n9mnd	2026-03-03 14:46:36.095	2026-02-24 14:46:36.098	2026-02-24 14:47:32.557
+\.
+
+
+--
+-- Data for Name: request_categories; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.request_categories (id, name, slug, department_id, description, icon, is_active, sort_order, created_at, updated_at) FROM stdin;
+cmlsc97o5000mhir7jhbz1pm2	Design	design	cmlsc963p0001hir7m9cacsc4	\N	\N	t	0	2026-02-18 18:01:17.333	2026-02-18 18:01:17.333
+cmlsc97ru0012hir77ht2icu8	DAF	daf	cmlsc964h0002hir7vmnnolpl	\N	\N	t	0	2026-02-18 18:01:17.466	2026-02-18 18:01:17.466
+cmlsc97v4001mhir73ty06ai1	Information	info	cmlsc964x0004hir7y0tosujt	\N	\N	t	0	2026-02-18 18:01:17.584	2026-02-18 18:01:17.584
+\.
+
+
+--
+-- Data for Name: request_subtypes; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.request_subtypes (id, name, slug, category_id, description, form_schema_id, default_priority, default_assignee_id, sla_response_hours, sla_resolution_hours, actions, is_active, sort_order, created_at, updated_at) FROM stdin;
+cmlzdtswy000m1qkbfua0ujtr	Teste	sadsa	cmlsc97o5000mhir7jhbz1pm2	\N	cmlzdikqb000k1qkbx9zazywy	NORMAL	\N	\N	\N	\N	f	0	2026-02-23 16:19:40.834	2026-02-23 16:22:43.768
+cmlzdu1h1000o1qkbk09g9sd6	artwork	artwork	cmlsc97o5000mhir7jhbz1pm2	\N	cmlsc97op000nhir7fgmkzeem	NORMAL	\N	\N	\N	\N	f	0	2026-02-23 16:19:51.925	2026-02-23 16:22:45.617
+cmlze54xr00121qkbzf8jnpdr	Design	design	cmlsc97o5000mhir7jhbz1pm2	\N	cmlzdikqb000k1qkbx9zazywy	NORMAL	\N	\N	\N	\N	t	0	2026-02-23 16:28:29.63	2026-02-23 16:28:29.63
+\.
+
+
+--
+-- Data for Name: saved_views; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.saved_views (id, name, user_id, filters, is_default, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: suppliers; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.suppliers (id, name, code, email, phone, address, tax_id, notes, is_active, created_at, updated_at) FROM stdin;
+3f8983f1-869c-40ac-92f9-fd22983ba839	Tecidos Lisboa Lda	SUP-001	vendas@tecidoslisboa.pt	\N	\N	PT501234567	\N	t	2026-02-18 18:01:17.723	2026-02-18 18:01:17.723
+326a95b1-7619-4a4f-9632-64416db41269	Malhas do Norte SA	SUP-002	geral@malhasdonorte.pt	\N	\N	PT502345678	\N	t	2026-02-18 18:01:17.733	2026-02-18 18:01:17.733
+e43b191c-c0ec-490e-8ce6-d9696e48509d	Acessórios & Co	SUP-003	info@acessorios.pt	\N	\N	PT503456789	\N	t	2026-02-18 18:01:17.738	2026-02-18 18:01:17.738
+5ac80cae-1c43-4fdb-8517-3298ce487add	Global Fabrics Ltd	SUP-004	sales@globalfabrics.uk	\N	\N	GB123456789	\N	t	2026-02-18 18:01:17.744	2026-02-18 18:01:17.744
+86a2e874-3727-49f4-81fe-b039a2cb50c5	Premium Threads SRL	SUP-005	contact@premiumthreads.it	\N	\N	IT12345678901	\N	t	2026-02-18 18:01:17.75	2026-02-18 18:01:17.75
+\.
+
+
+--
+-- Data for Name: system_settings; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.system_settings (id, key, value, created_at, updated_at) FROM stdin;
+cmlsc97xe0023hir7qbwjb6oh	smtpPort	587	2026-02-18 18:01:17.667	2026-02-23 15:44:56.188
+cmlsc97xj0024hir7disub0zi	smtpUser	"noreply@test-pzkmgq79n0vl059v.mlsender.net"	2026-02-18 18:01:17.672	2026-02-23 15:44:56.188
+cmlsc97xo0025hir77lgs0i89	smtpFrom	"noreply@test-pzkmgq79n0vl059v.mlsender.net"	2026-02-18 18:01:17.676	2026-02-23 15:44:56.188
+cmluqpyod00061ki3p6p57r3r	logoFileId	"cmluqpym100051ki3nz10774v"	2026-02-20 10:21:45.805	2026-02-23 15:44:56.188
+cmluqqlh2000l1ki3r7s4eb7f	faviconFileId	"cmluqqlfq000k1ki3ob89kzkx"	2026-02-20 10:22:15.35	2026-02-23 15:44:56.188
+cmlurh8be000v1ki3s9lcskhz	logoLightFileId	"cmlurh8a5000u1ki35nvhygca"	2026-02-20 10:42:58.01	2026-02-23 15:44:56.188
+cmluqxmsm000m1ki3v9ymxiii	brandName	""	2026-02-20 10:27:43.653	2026-02-23 15:44:56.188
+cmluqxmsn000n1ki3rxjzjxvy	showBrandName	false	2026-02-20 10:27:43.653	2026-02-23 15:44:56.188
+cmluqxmsn000o1ki382di8qv0	expandLogo	true	2026-02-20 10:27:43.653	2026-02-23 15:44:56.188
+cmlyzod590000ada1emtgcwxl	slaWorkStartHour	"9"	2026-02-23 09:43:32.489	2026-02-23 15:44:56.188
+cmlyzod5a0001ada1lc49lz8e	slaWorkStartMinute	"0"	2026-02-23 09:43:32.489	2026-02-23 15:44:56.188
+cmlyzod5a0002ada1lckcymo5	slaWorkEndHour	"18"	2026-02-23 09:43:32.489	2026-02-23 15:44:56.188
+cmlyzod5a0003ada1wj2leg62	slaWorkEndMinute	"30"	2026-02-23 09:43:32.489	2026-02-23 15:44:56.188
+cmlyzod5b0004ada1n8yq7qrt	slaLunchStartHour	"12"	2026-02-23 09:43:32.489	2026-02-23 15:44:56.188
+cmlyzod5b0006ada1tobapp2o	slaLunchEndHour	"14"	2026-02-23 09:43:32.489	2026-02-23 15:44:56.188
+cmlyzod5c0009ada1ljnt4mnc	slaWorkDays	"[1,2,3,4,5]"	2026-02-23 09:43:32.489	2026-02-23 15:44:56.188
+cmlsc97w0001vhir7olfil5h7	maxUploadSize	52428800	2026-02-18 18:01:17.616	2026-02-23 15:44:56.188
+cmlsc97w9001whir722vuikmz	defaultPriority	"NORMAL"	2026-02-18 18:01:17.626	2026-02-23 15:44:56.188
+cmlsc97we001xhir70gnnum4j	workingDays	["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]	2026-02-18 18:01:17.631	2026-02-23 15:44:56.188
+cmlyzod5b0007ada1bvu03omx	slaLunchEndMinute	"0"	2026-02-23 09:43:32.489	2026-02-23 15:44:56.188
+cmlyzod5b0005ada1zrc06tcc	slaLunchStartMinute	"30"	2026-02-23 09:43:32.489	2026-02-23 15:44:56.188
+cmlyzod5b0008ada1eqt5vkc4	slaTimezone	"Europe/Lisbon"	2026-02-23 09:43:32.489	2026-02-23 15:44:56.188
+cmlsc97wk001yhir7fh5mqdw7	slaResponseHours	24	2026-02-18 18:01:17.636	2026-02-23 15:44:56.188
+cmlsc97wo001zhir7k0ws1uf1	slaResolutionHours	72	2026-02-18 18:01:17.641	2026-02-23 15:44:56.188
+cmlsc97wu0020hir7z7rmzyr4	ticketPrefix	"LOOP"	2026-02-18 18:01:17.646	2026-02-23 15:44:56.188
+cmlsc97wz0021hir71zd0vqqx	allowedFileTypes	["image/*", "application/pdf", ".doc", ".docx", ".xls", ".xlsx", ".csv", ".txt", ".zip"]	2026-02-18 18:01:17.652	2026-02-23 15:44:56.188
+cmlsc97x90022hir7ftjxsmv3	smtpHost	"smtp.gmail.com"	2026-02-18 18:01:17.662	2026-02-23 15:44:56.188
+\.
+
+
+--
+-- Data for Name: ticket_counter; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.ticket_counter (id, counter) FROM stdin;
+singleton	19
+\.
+
+
+--
+-- Data for Name: ticket_forwards; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.ticket_forwards (id, ticket_id, from_user_id, to_user_id, message, created_at) FROM stdin;
+9cf0a913-eefd-4a6a-9317-70ceee380239	cmltrcwl4000af703oicl9tcd	cmlsc96wv0006hir7s083phyv	cmltcgutd000o8c8c9tr6q3yk	vê isto 	2026-02-20 15:33:42.888
+\.
+
+
+--
+-- Data for Name: ticket_history; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.ticket_history (id, ticket_id, field, old_value, new_value, changed_by_id, created_at) FROM stdin;
+cmlta0edt000yqtrcykcsl514	cmlta0ec1000uqtrcsuc44ugz	status	\N	OPEN	cmlsc96wv0006hir7s083phyv	2026-02-19 09:46:13.073
+cmltc8v0l000a8c8cj8fwychq	cmltc8uz800068c8ctyiq61q0	status	\N	OPEN	cmlsc97nb000ghir7duuqmeij	2026-02-19 10:48:47.109
+cmltfr56y000imi0dwkcmm3w6	cmltfr55f000emi0d8htpu6fv	status	\N	OPEN	cmlsc97nb000ghir7duuqmeij	2026-02-19 12:26:58.954
+cmltrcwmj000ef703vrc9pg5p	cmltrcwl4000af703oicl9tcd	status	\N	OPEN	cmltqqrc6000b13fsnd6n9mnd	2026-02-19 17:51:50.059
+cmlv1v4xq0009130by0fdsbzc	cmltrcwl4000af703oicl9tcd	forwarded	\N	Acessorios Loop	cmlsc96wv0006hir7s083phyv	2026-02-20 15:33:42.975
+cmlyzw03j001kada19c3pjiez	cmlyzw00h001gada185emeji3	status	\N	OPEN	cmlsc96wv0006hir7s083phyv	2026-02-23 09:49:28.831
+cmlyzxnze0029ada1idootwep	cmlyzxny90025ada1f6vy2b0u	status	\N	OPEN	cmlsc96wv0006hir7s083phyv	2026-02-23 09:50:46.442
+cmlyzz53u002mada12zwgfjm6	cmlyzz52k002iada1fp1k8qiz	status	\N	OPEN	cmlsc96wv0006hir7s083phyv	2026-02-23 09:51:55.291
+cmlz0005f002xada1yj5m4fux	cmlz00038002tada1g4mtynn0	status	\N	OPEN	cmlsc96wv0006hir7s083phyv	2026-02-23 09:52:35.523
+cmlz02ev1003dada1mdn1tn4x	cmlz02etz0039ada16ejowe46	status	\N	DRAFT	cmlsc96wv0006hir7s083phyv	2026-02-23 09:54:27.901
+cmlz02lae003gada13z0dwceq	cmlz02etz0039ada16ejowe46	status	DRAFT	OPEN	cmlsc96wv0006hir7s083phyv	2026-02-23 09:54:36.23
+cmlz02msu003lada1av0dsw9a	cmlz02etz0039ada16ejowe46	status	OPEN	DRAFT	cmlsc96wv0006hir7s083phyv	2026-02-23 09:54:38.19
+cmlz02q1d003qada1yhxwet48	cmlz02etz0039ada16ejowe46	status	DRAFT	WAITING_REPLY	cmlsc96wv0006hir7s083phyv	2026-02-23 09:54:42.385
+cmlz0gu7k0045ada1rkvyor21	cmlz0gu5x0041ada1ztgz1w8d	status	\N	OPEN	cmlsc96wv0006hir7s083phyv	2026-02-23 10:05:40.976
+cmlz0h1zw004cada17mkaek8f	cmlz0gu5x0041ada1ztgz1w8d	status	OPEN	WAITING_REPLY	cmlsc96wv0006hir7s083phyv	2026-02-23 10:05:51.068
+cmlz0h4i9004hada1msbjrtzq	cmlz0gu5x0041ada1ztgz1w8d	status	WAITING_REPLY	IN_PROGRESS	cmlsc96wv0006hir7s083phyv	2026-02-23 10:05:54.321
+cmlz3tj3o000410n649d74f99	cmlz00038002tada1g4mtynn0	status	OPEN	CLOSED	cmlsc96wv0006hir7s083phyv	2026-02-23 11:39:31.956
+cmlz4nzld002i10n6bw3xvwnn	cmlz4nzj3002e10n63mvffgyw	status	\N	OPEN	cmlsc96wv0006hir7s083phyv	2026-02-23 12:03:13.009
+cmlzh1d2y000m9za3ak4goxx1	cmlz4nzj3002e10n63mvffgyw	status	OPEN	CLOSED	cmltqqrc6000b13fsnd6n9mnd	2026-02-23 17:49:32.41
+cmlzhfsqf00139za3aqdl7pqh	cmlyzz52k002iada1fp1k8qiz	status	OPEN	CLOSED	cmlsc96wv0006hir7s083phyv	2026-02-23 18:00:45.879
+cmm0tb9f9001s60vqoykx9f5y	cmlz02etz0039ada16ejowe46	status	WAITING_REPLY	REJECTED	cmlsc96wv0006hir7s083phyv	2026-02-24 16:20:55.797
+\.
+
+
+--
+-- Data for Name: ticket_watchers; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.ticket_watchers (id, ticket_id, user_id, created_at) FROM stdin;
+cmlta0edc000wqtrcb13vmcj4	cmlta0ec1000uqtrcsuc44ugz	cmlsc96wv0006hir7s083phyv	2026-02-19 09:46:13.056
+cmltc8v0900088c8c6tjmbhic	cmltc8uz800068c8ctyiq61q0	cmlsc97nb000ghir7duuqmeij	2026-02-19 10:48:47.097
+cmltfr56n000gmi0dch2rr6zq	cmltfr55f000emi0d8htpu6fv	cmlsc97nb000ghir7duuqmeij	2026-02-19 12:26:58.943
+cmltrcwm7000cf703a51d4u39	cmltrcwl4000af703oicl9tcd	cmltqqrc6000b13fsnd6n9mnd	2026-02-19 17:51:50.047
+cmlv1v4wf0005130bkepwhflo	cmltrcwl4000af703oicl9tcd	cmltcgutd000o8c8c9tr6q3yk	2026-02-20 15:33:42.927
+cmlyzw02g001iada1jjheh84a	cmlyzw00h001gada185emeji3	cmlsc96wv0006hir7s083phyv	2026-02-23 09:49:28.792
+cmlyzxnz40027ada1lvldvowu	cmlyzxny90025ada1f6vy2b0u	cmlsc96wv0006hir7s083phyv	2026-02-23 09:50:46.432
+cmlyzz53i002kada1e2528muq	cmlyzz52k002iada1fp1k8qiz	cmlsc96wv0006hir7s083phyv	2026-02-23 09:51:55.278
+cmlz0004x002vada1ltocq0oe	cmlz00038002tada1g4mtynn0	cmlsc96wv0006hir7s083phyv	2026-02-23 09:52:35.505
+cmlz02eup003bada1sfw5ctq3	cmlz02etz0039ada16ejowe46	cmlsc96wv0006hir7s083phyv	2026-02-23 09:54:27.89
+cmlz0gu710043ada130rd3nu5	cmlz0gu5x0041ada1ztgz1w8d	cmlsc96wv0006hir7s083phyv	2026-02-23 10:05:40.958
+cmlz4nzkl002g10n618q36eyd	cmlz4nzj3002e10n63mvffgyw	cmlsc96wv0006hir7s083phyv	2026-02-23 12:03:12.981
+\.
+
+
+--
+-- Data for Name: tickets; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.tickets (id, ticket_number, title, description, status, priority, from_department_id, to_department_id, subtype_id, created_by_id, assigned_to_id, due_date, sla_response_deadline, sla_resolution_deadline, sla_response_at, sla_resolved_at, sla_paused_at, sla_paused_duration, tags, duplicate_of_id, closed_at, created_at, updated_at, metadata, is_archived, archived_at) FROM stdin;
+cmlta0ec1000uqtrcsuc44ugz	LOOP-000002	teste client	deve aparecer o cliente el cort ingles	OPEN	NORMAL	cmlsc964x0004hir7y0tosujt	cmlsc964j0003hir7sny2507k	\N	cmlsc96wv0006hir7s083phyv	\N	\N	2026-02-20 09:46:13.006	2026-02-22 09:46:13.006	\N	\N	\N	0	{}	\N	\N	2026-02-19 09:46:13.009	2026-02-19 09:46:13.009	\N	f	\N
+cmltc8uz800068c8ctyiq61q0	LOOP-000003	stasd	teste	OPEN	NORMAL	cmlsc964j0003hir7sny2507k	cmlsc964j0003hir7sny2507k	\N	cmlsc97nb000ghir7duuqmeij	\N	\N	2026-02-20 10:48:47.057	2026-02-22 10:48:47.057	\N	\N	\N	0	{}	\N	\N	2026-02-19 10:48:47.06	2026-02-19 10:48:47.06	{"entityId": "218c22a2-06f5-4244-828a-114709a60b97", "entityName": "El Corte Inglés", "entityType": "client"}	f	\N
+cmltfr55f000emi0d8htpu6fv	LOOP-000006	teste	teste	OPEN	NORMAL	cmlsc964j0003hir7sny2507k	cmlsc960d0000hir76ogsrgcx	\N	cmlsc97nb000ghir7duuqmeij	cmlsc97ma0008hir7on2fgmgd	\N	2026-02-20 12:26:58.895	2026-02-22 12:26:58.895	\N	\N	\N	0	{}	\N	\N	2026-02-19 12:26:58.899	2026-02-19 12:26:58.899	\N	f	\N
+cmltrcwl4000af703oicl9tcd	LOOP-000007	resolve	asdasd	OPEN	NORMAL	cmlsc964x0004hir7y0tosujt	cmlsc964h0002hir7vmnnolpl	\N	cmltqqrc6000b13fsnd6n9mnd	cmlsc97nm000ihir7tlgk66ca	\N	2026-02-20 17:51:50.005	2026-02-22 17:51:50.005	\N	\N	\N	0	{}	\N	\N	2026-02-19 17:51:50.008	2026-02-19 17:51:50.008	\N	f	\N
+cmlyzw00h001gada185emeji3	LOOP-000011	Low	low	OPEN	LOW	cmlsc964x0004hir7y0tosujt	cmlsc964h0002hir7vmnnolpl	\N	cmlsc96wv0006hir7s083phyv	cmlsc97nm000ihir7tlgk66ca	\N	2026-02-25 09:49:28.675	2026-02-25 09:49:28.675	\N	\N	\N	0	{}	\N	\N	2026-02-23 09:49:28.719	2026-02-23 09:49:28.719	\N	f	\N
+cmlyzxny90025ada1f6vy2b0u	LOOP-000012	Normal	Normal	OPEN	NORMAL	cmlsc964x0004hir7y0tosujt	cmlsc964x0004hir7y0tosujt	\N	cmlsc96wv0006hir7s083phyv	cmlsc97nv000khir7r78mus4k	\N	2026-02-24 09:50:46.374	2026-02-24 09:50:46.374	\N	\N	\N	0	{}	\N	\N	2026-02-23 09:50:46.401	2026-02-23 09:50:46.401	\N	f	\N
+cmlz00038002tada1g4mtynn0	LOOP-000014	urgent	urgent	CLOSED	URGENT	cmlsc964x0004hir7y0tosujt	cmlsc964j0003hir7sny2507k	\N	cmlsc96wv0006hir7s083phyv	cmltcgutd000o8c8c9tr6q3yk	\N	2026-02-23 10:52:35.426	2026-02-23 11:52:35.426	\N	2026-02-23 11:39:31.889	\N	0	{}	\N	2026-02-23 11:39:31.889	2026-02-23 09:52:35.443	2026-02-23 11:39:43.551	{"entityId": "326a95b1-7619-4a4f-9632-64416db41269", "entityName": "Malhas do Norte SA", "entityType": "supplier"}	t	2026-02-23 11:39:43.55
+cmlyzz52k002iada1fp1k8qiz	LOOP-000013	hight	ffr	CLOSED	HIGH	cmlsc964x0004hir7y0tosujt	cmlsc960d0000hir76ogsrgcx	\N	cmlsc96wv0006hir7s083phyv	cmlsc97ma0008hir7on2fgmgd	\N	2026-02-23 15:21:55.223	2026-02-23 15:21:55.223	\N	2026-02-23 18:00:45.804	\N	0	{}	\N	2026-02-23 18:00:45.804	2026-02-23 09:51:55.244	2026-02-23 18:00:45.807	\N	f	\N
+cmlz0gu5x0041ada1ztgz1w8d	LOOP-000017	sdfsdf	sdfsdf	IN_PROGRESS	NORMAL	cmlsc964x0004hir7y0tosujt	cmlsc963p0001hir7m9cacsc4	\N	cmlsc96wv0006hir7s083phyv	cmlsc97mz000ehir7xe46e5bk	\N	2026-02-24 10:05:43.89	2026-02-24 10:05:43.89	2026-02-23 10:05:54.275	\N	\N	3	{}	\N	\N	2026-02-23 10:05:40.914	2026-02-24 12:18:42.136	\N	f	\N
+cmlz4nzj3002e10n63mvffgyw	LOOP-000018	test	tsest	CLOSED	NORMAL	cmlsc964x0004hir7y0tosujt	cmlsc964x0004hir7y0tosujt	\N	cmlsc96wv0006hir7s083phyv	cmltqqrc6000b13fsnd6n9mnd	\N	2026-02-24 12:03:12.901	2026-02-24 12:03:12.901	\N	2026-02-23 17:49:32.309	\N	0	{}	\N	2026-02-23 17:49:32.309	2026-02-23 12:03:12.927	2026-02-24 14:30:04.836	\N	t	2026-02-24 14:30:04.834
+cmlz02etz0039ada16ejowe46	LOOP-000016	draft		REJECTED	NORMAL	cmlsc964x0004hir7y0tosujt	cmlsc964j0003hir7sny2507k	\N	cmlsc96wv0006hir7s083phyv	\N	\N	2026-02-25 16:20:40.839	2026-02-25 16:20:40.839	\N	\N	\N	109573	{}	\N	\N	2026-02-23 09:54:27.863	2026-02-24 16:20:55.743	\N	f	\N
+\.
+
+
+--
+-- Data for Name: time_entries; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.time_entries (id, ticket_id, user_id, minutes, description, date, created_at) FROM stdin;
+cmm0oyfal000l60vq5qrakpzs	cmlz4nzj3002e10n63mvffgyw	cmlsc96wv0006hir7s083phyv	20	\N	2026-02-24 14:18:58.413	2026-02-24 14:18:58.413
+\.
+
+
+--
+-- Data for Name: user_permissions; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.user_permissions (id, user_id, permission_name, granted_at) FROM stdin;
+7c3f99ef-b13a-4b30-8544-49ca4dd81af4	cmltqqrc6000b13fsnd6n9mnd	analytics.view	2026-02-23 11:42:02.15
+36fb2698-9720-486b-9e8f-c4630f099ae9	cmltqqrc6000b13fsnd6n9mnd	forms.manage	2026-02-23 11:42:02.15
+afc8fee0-ae28-4c4b-aab2-318833877bfb	cmltqqrc6000b13fsnd6n9mnd	audit.view	2026-02-23 11:42:02.15
+b0126d20-bcd8-4087-a4ab-12986b0fd5e6	cmltqqrc6000b13fsnd6n9mnd	settings.manage	2026-02-23 11:42:02.15
+f48a23aa-e4f8-4f32-a620-73b103be2ac3	cmltqqrc6000b13fsnd6n9mnd	departments.manage	2026-02-23 11:42:02.15
+f731968e-bbc2-4c14-9eac-176973c18406	cmltqqrc6000b13fsnd6n9mnd	tickets.delete	2026-02-23 11:42:02.15
+ab1566ce-2615-4cea-91f0-33f8bc01efcf	cmltqqrc6000b13fsnd6n9mnd	tickets.delete_any	2026-02-23 11:42:02.15
+1ebfee84-05ca-45ea-85c6-47e86e524481	cmltqqrc6000b13fsnd6n9mnd	tickets.forward	2026-02-23 11:42:02.15
+fcd1bd2d-661b-4a59-a1d6-8ae9e8b7d501	cmltqqrc6000b13fsnd6n9mnd	tickets.manage_all	2026-02-23 11:42:02.15
+33d3ee11-b4cb-464c-b7a7-cc87479ae5ea	cmltqqrc6000b13fsnd6n9mnd	users.manage	2026-02-23 11:42:02.15
+fde88404-a700-4330-8ea1-d47b2f8d4b1c	cmltqqrc6000b13fsnd6n9mnd	admin.access	2026-02-23 11:42:02.15
+4981f119-5d9e-4e7a-9e86-80839fbc19d8	cmltcgutd000o8c8c9tr6q3yk	tickets.forward	2026-02-23 12:28:41.727
+63869da3-bfd0-491c-ae0b-cb5b4dedf9b9	cmltcgutd000o8c8c9tr6q3yk	users.manage	2026-02-23 12:28:41.727
+4ccdfe68-6e8c-425c-a3b4-02cae56707d8	cmlsc97nb000ghir7duuqmeij	analytics.view	2026-02-23 17:18:50.733
+\.
+
+
+--
+-- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: loop_user
+--
+
+COPY public.users (id, email, password, first_name, last_name, avatar, global_role, department_id, department_role, is_active, last_login_at, created_at, updated_at) FROM stdin;
+cmlsc97mz000ehir7xe46e5bk	pedro.design@loop.local	$2a$12$1ts4xVfL6kU2ntm7.lFyruqy3xmEa.7NWTarjSkOP2Ac.3hCCbf4q	Pedro	Oliveira	\N	USER	cmlsc963p0001hir7m9cacsc4	DEPARTMENT_USER	t	\N	2026-02-18 18:01:17.291	2026-02-18 18:01:17.291
+cmlsc97nm000ihir7tlgk66ca	sofia.daf@loop.local	$2a$12$1ts4xVfL6kU2ntm7.lFyruqy3xmEa.7NWTarjSkOP2Ac.3hCCbf4q	Sofia	Almeida	\N	USER	cmlsc964h0002hir7vmnnolpl	DEPARTMENT_HEAD	t	\N	2026-02-18 18:01:17.313	2026-02-18 18:01:17.313
+cmlsc97nv000khir7r78mus4k	rita.info@loop.local	$2a$12$1ts4xVfL6kU2ntm7.lFyruqy3xmEa.7NWTarjSkOP2Ac.3hCCbf4q	Rita	Pereira	\N	USER	cmlsc964x0004hir7y0tosujt	DEPARTMENT_USER	t	\N	2026-02-18 18:01:17.323	2026-02-18 18:01:17.323
+cmltcgutd000o8c8c9tr6q3yk	acc@loop.local	$2a$12$6aASaFP1JyFkQKo/LpYgg.9kgkL8vmfs7FpfQcG.Tiv5q6daC1N0C	Acessorios	Loop	\N	USER	cmlsc964j0003hir7sny2507k	DEPARTMENT_USER	t	2026-02-23 17:50:29.922	2026-02-19 10:55:00.092	2026-02-23 17:50:29.923
+cmltqqrc6000b13fsnd6n9mnd	fabio.costa@dtx.pt	$2a$12$KwQeGCiaO25Jw2eSeVOXI.YSgUS9Xegni/EWe3E3he7khbwDa/x8m	Fabio	Costa	\N	USER	cmlsc964x0004hir7y0tosujt	DEPARTMENT_HEAD	t	2026-02-24 14:47:46.429	2026-02-19 17:34:36.773	2026-02-24 14:47:46.431
+cmlsc96wv0006hir7s083phyv	admin@loop.local	$2a$12$vUr2hJMTpgWabemgGsyTrOUiEAmeeIa4n8GUvCLwMv/vxE/VrTLgm	System	Admin	\N	GLOBAL_ADMIN	cmlsc964x0004hir7y0tosujt	DEPARTMENT_USER	t	2026-02-24 16:20:04.125	2026-02-18 18:01:16.351	2026-02-24 16:20:04.127
+cmlsc97mq000chir7kza21yz0	ana.design@loop.local	$2a$12$1ts4xVfL6kU2ntm7.lFyruqy3xmEa.7NWTarjSkOP2Ac.3hCCbf4q	Ana	Costa	\N	USER	cmlsc963p0001hir7m9cacsc4	DEPARTMENT_HEAD	t	2026-02-20 16:11:06.034	2026-02-18 18:01:17.282	2026-02-20 16:11:06.035
+cmlsc97mi000ahir7jy3l2o6q	maria.sales@loop.local	$2a$12$1ts4xVfL6kU2ntm7.lFyruqy3xmEa.7NWTarjSkOP2Ac.3hCCbf4q	Maria	Santos	\N	USER	cmlsc960d0000hir76ogsrgcx	DEPARTMENT_USER	t	2026-02-20 11:45:47.838	2026-02-18 18:01:17.274	2026-02-20 11:45:47.84
+cmlsc97ma0008hir7on2fgmgd	joao.sales@loop.local	$2a$12$1ts4xVfL6kU2ntm7.lFyruqy3xmEa.7NWTarjSkOP2Ac.3hCCbf4q	João	Silva	\N	USER	cmlsc960d0000hir76ogsrgcx	DEPARTMENT_HEAD	t	2026-02-19 11:50:15.151	2026-02-18 18:01:17.266	2026-02-19 11:50:15.157
+cmlsc97nb000ghir7duuqmeij	carlos.acc@loop.local	$2a$12$1ts4xVfL6kU2ntm7.lFyruqy3xmEa.7NWTarjSkOP2Ac.3hCCbf4q	Carlos	Ferreira	\N	USER	cmlsc964j0003hir7sny2507k	DEPARTMENT_HEAD	t	2026-02-23 17:46:42.561	2026-02-18 18:01:17.303	2026-02-23 17:46:42.563
+\.
+
+
+--
+-- Name: _prisma_migrations _prisma_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public._prisma_migrations
+    ADD CONSTRAINT _prisma_migrations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: attachments attachments_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.attachments
+    ADD CONSTRAINT attachments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: audit_logs audit_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.audit_logs
+    ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: canned_responses canned_responses_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.canned_responses
+    ADD CONSTRAINT canned_responses_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: clients clients_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.clients
+    ADD CONSTRAINT clients_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: custom_priorities custom_priorities_name_key; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.custom_priorities
+    ADD CONSTRAINT custom_priorities_name_key UNIQUE (name);
+
+
+--
+-- Name: custom_priorities custom_priorities_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.custom_priorities
+    ADD CONSTRAINT custom_priorities_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: custom_statuses custom_statuses_name_key; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.custom_statuses
+    ADD CONSTRAINT custom_statuses_name_key UNIQUE (name);
+
+
+--
+-- Name: custom_statuses custom_statuses_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.custom_statuses
+    ADD CONSTRAINT custom_statuses_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: departments departments_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.departments
+    ADD CONSTRAINT departments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: form_schemas form_schemas_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.form_schemas
+    ADD CONSTRAINT form_schemas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: form_submissions form_submissions_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.form_submissions
+    ADD CONSTRAINT form_submissions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: internal_notes internal_notes_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.internal_notes
+    ADD CONSTRAINT internal_notes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: messages messages_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.messages
+    ADD CONSTRAINT messages_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: notification_policies notification_policies_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.notification_policies
+    ADD CONSTRAINT notification_policies_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: notification_preferences notification_preferences_event_type_key; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.notification_preferences
+    ADD CONSTRAINT notification_preferences_event_type_key UNIQUE (event_type);
+
+
+--
+-- Name: notification_preferences notification_preferences_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.notification_preferences
+    ADD CONSTRAINT notification_preferences_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: notification_rules notification_rules_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.notification_rules
+    ADD CONSTRAINT notification_rules_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: notifications notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.notifications
+    ADD CONSTRAINT notifications_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: password_resets password_resets_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.password_resets
+    ADD CONSTRAINT password_resets_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: permissions permissions_name_key; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.permissions
+    ADD CONSTRAINT permissions_name_key UNIQUE (name);
+
+
+--
+-- Name: permissions permissions_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.permissions
+    ADD CONSTRAINT permissions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: refresh_tokens refresh_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.refresh_tokens
+    ADD CONSTRAINT refresh_tokens_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: request_categories request_categories_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.request_categories
+    ADD CONSTRAINT request_categories_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: request_subtypes request_subtypes_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.request_subtypes
+    ADD CONSTRAINT request_subtypes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: saved_views saved_views_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.saved_views
+    ADD CONSTRAINT saved_views_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: suppliers suppliers_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.suppliers
+    ADD CONSTRAINT suppliers_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: system_settings system_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.system_settings
+    ADD CONSTRAINT system_settings_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticket_counter ticket_counter_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.ticket_counter
+    ADD CONSTRAINT ticket_counter_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticket_forwards ticket_forwards_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.ticket_forwards
+    ADD CONSTRAINT ticket_forwards_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticket_history ticket_history_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.ticket_history
+    ADD CONSTRAINT ticket_history_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticket_watchers ticket_watchers_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.ticket_watchers
+    ADD CONSTRAINT ticket_watchers_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tickets tickets_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.tickets
+    ADD CONSTRAINT tickets_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: time_entries time_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.time_entries
+    ADD CONSTRAINT time_entries_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_permissions user_permissions_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.user_permissions
+    ADD CONSTRAINT user_permissions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_permissions user_permissions_user_id_permission_name_key; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.user_permissions
+    ADD CONSTRAINT user_permissions_user_id_permission_name_key UNIQUE (user_id, permission_name);
+
+
+--
+-- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: audit_logs_action_idx; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE INDEX audit_logs_action_idx ON public.audit_logs USING btree (action);
+
+
+--
+-- Name: audit_logs_created_at_idx; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE INDEX audit_logs_created_at_idx ON public.audit_logs USING btree (created_at);
+
+
+--
+-- Name: audit_logs_entity_type_entity_id_idx; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE INDEX audit_logs_entity_type_entity_id_idx ON public.audit_logs USING btree (entity_type, entity_id);
+
+
+--
+-- Name: audit_logs_user_id_idx; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE INDEX audit_logs_user_id_idx ON public.audit_logs USING btree (user_id);
+
+
+--
+-- Name: canned_responses_department_id_idx; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE INDEX canned_responses_department_id_idx ON public.canned_responses USING btree (department_id);
+
+
+--
+-- Name: clients_code_key; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE UNIQUE INDEX clients_code_key ON public.clients USING btree (code);
+
+
+--
+-- Name: departments_name_key; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE UNIQUE INDEX departments_name_key ON public.departments USING btree (name);
+
+
+--
+-- Name: departments_slug_key; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE UNIQUE INDEX departments_slug_key ON public.departments USING btree (slug);
+
+
+--
+-- Name: form_submissions_ticket_id_key; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE UNIQUE INDEX form_submissions_ticket_id_key ON public.form_submissions USING btree (ticket_id);
+
+
+--
+-- Name: notifications_user_id_is_read_idx; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE INDEX notifications_user_id_is_read_idx ON public.notifications USING btree (user_id, is_read);
+
+
+--
+-- Name: password_resets_token_key; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE UNIQUE INDEX password_resets_token_key ON public.password_resets USING btree (token);
+
+
+--
+-- Name: refresh_tokens_token_key; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE UNIQUE INDEX refresh_tokens_token_key ON public.refresh_tokens USING btree (token);
+
+
+--
+-- Name: request_categories_department_id_slug_key; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE UNIQUE INDEX request_categories_department_id_slug_key ON public.request_categories USING btree (department_id, slug);
+
+
+--
+-- Name: request_subtypes_category_id_slug_key; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE UNIQUE INDEX request_subtypes_category_id_slug_key ON public.request_subtypes USING btree (category_id, slug);
+
+
+--
+-- Name: suppliers_code_key; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE UNIQUE INDEX suppliers_code_key ON public.suppliers USING btree (code);
+
+
+--
+-- Name: system_settings_key_key; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE UNIQUE INDEX system_settings_key_key ON public.system_settings USING btree (key);
+
+
+--
+-- Name: ticket_watchers_ticket_id_user_id_key; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE UNIQUE INDEX ticket_watchers_ticket_id_user_id_key ON public.ticket_watchers USING btree (ticket_id, user_id);
+
+
+--
+-- Name: tickets_assigned_to_id_idx; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE INDEX tickets_assigned_to_id_idx ON public.tickets USING btree (assigned_to_id);
+
+
+--
+-- Name: tickets_created_at_idx; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE INDEX tickets_created_at_idx ON public.tickets USING btree (created_at);
+
+
+--
+-- Name: tickets_created_by_id_idx; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE INDEX tickets_created_by_id_idx ON public.tickets USING btree (created_by_id);
+
+
+--
+-- Name: tickets_from_department_id_idx; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE INDEX tickets_from_department_id_idx ON public.tickets USING btree (from_department_id);
+
+
+--
+-- Name: tickets_is_archived_idx; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE INDEX tickets_is_archived_idx ON public.tickets USING btree (is_archived);
+
+
+--
+-- Name: tickets_priority_idx; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE INDEX tickets_priority_idx ON public.tickets USING btree (priority);
+
+
+--
+-- Name: tickets_status_idx; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE INDEX tickets_status_idx ON public.tickets USING btree (status);
+
+
+--
+-- Name: tickets_ticket_number_key; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE UNIQUE INDEX tickets_ticket_number_key ON public.tickets USING btree (ticket_number);
+
+
+--
+-- Name: tickets_to_department_id_idx; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE INDEX tickets_to_department_id_idx ON public.tickets USING btree (to_department_id);
+
+
+--
+-- Name: time_entries_ticket_id_idx; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE INDEX time_entries_ticket_id_idx ON public.time_entries USING btree (ticket_id);
+
+
+--
+-- Name: time_entries_user_id_idx; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE INDEX time_entries_user_id_idx ON public.time_entries USING btree (user_id);
+
+
+--
+-- Name: users_email_key; Type: INDEX; Schema: public; Owner: loop_user
+--
+
+CREATE UNIQUE INDEX users_email_key ON public.users USING btree (email);
+
+
+--
+-- Name: attachments attachments_message_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.attachments
+    ADD CONSTRAINT attachments_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.messages(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: attachments attachments_ticket_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.attachments
+    ADD CONSTRAINT attachments_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES public.tickets(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: audit_logs audit_logs_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.audit_logs
+    ADD CONSTRAINT audit_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+--
+-- Name: canned_responses canned_responses_created_by_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.canned_responses
+    ADD CONSTRAINT canned_responses_created_by_id_fkey FOREIGN KEY (created_by_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: canned_responses canned_responses_department_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.canned_responses
+    ADD CONSTRAINT canned_responses_department_id_fkey FOREIGN KEY (department_id) REFERENCES public.departments(id) ON DELETE SET NULL;
+
+
+--
+-- Name: form_submissions form_submissions_form_schema_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.form_submissions
+    ADD CONSTRAINT form_submissions_form_schema_id_fkey FOREIGN KEY (form_schema_id) REFERENCES public.form_schemas(id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+
+--
+-- Name: form_submissions form_submissions_ticket_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.form_submissions
+    ADD CONSTRAINT form_submissions_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES public.tickets(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: internal_notes internal_notes_author_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.internal_notes
+    ADD CONSTRAINT internal_notes_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+
+--
+-- Name: internal_notes internal_notes_ticket_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.internal_notes
+    ADD CONSTRAINT internal_notes_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES public.tickets(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: messages messages_author_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.messages
+    ADD CONSTRAINT messages_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+
+--
+-- Name: messages messages_ticket_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.messages
+    ADD CONSTRAINT messages_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES public.tickets(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: notification_policies notification_policies_department_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.notification_policies
+    ADD CONSTRAINT notification_policies_department_id_fkey FOREIGN KEY (department_id) REFERENCES public.departments(id) ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+--
+-- Name: notifications notifications_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.notifications
+    ADD CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: password_resets password_resets_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.password_resets
+    ADD CONSTRAINT password_resets_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: refresh_tokens refresh_tokens_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.refresh_tokens
+    ADD CONSTRAINT refresh_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: request_categories request_categories_department_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.request_categories
+    ADD CONSTRAINT request_categories_department_id_fkey FOREIGN KEY (department_id) REFERENCES public.departments(id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+
+--
+-- Name: request_subtypes request_subtypes_category_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.request_subtypes
+    ADD CONSTRAINT request_subtypes_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.request_categories(id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+
+--
+-- Name: request_subtypes request_subtypes_form_schema_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.request_subtypes
+    ADD CONSTRAINT request_subtypes_form_schema_id_fkey FOREIGN KEY (form_schema_id) REFERENCES public.form_schemas(id) ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+--
+-- Name: ticket_forwards ticket_forwards_from_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.ticket_forwards
+    ADD CONSTRAINT ticket_forwards_from_user_id_fkey FOREIGN KEY (from_user_id) REFERENCES public.users(id);
+
+
+--
+-- Name: ticket_forwards ticket_forwards_ticket_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.ticket_forwards
+    ADD CONSTRAINT ticket_forwards_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES public.tickets(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ticket_forwards ticket_forwards_to_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.ticket_forwards
+    ADD CONSTRAINT ticket_forwards_to_user_id_fkey FOREIGN KEY (to_user_id) REFERENCES public.users(id);
+
+
+--
+-- Name: ticket_history ticket_history_ticket_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.ticket_history
+    ADD CONSTRAINT ticket_history_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES public.tickets(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: ticket_watchers ticket_watchers_ticket_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.ticket_watchers
+    ADD CONSTRAINT ticket_watchers_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES public.tickets(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: ticket_watchers ticket_watchers_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.ticket_watchers
+    ADD CONSTRAINT ticket_watchers_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: tickets tickets_assigned_to_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.tickets
+    ADD CONSTRAINT tickets_assigned_to_id_fkey FOREIGN KEY (assigned_to_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+--
+-- Name: tickets tickets_created_by_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.tickets
+    ADD CONSTRAINT tickets_created_by_id_fkey FOREIGN KEY (created_by_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+
+--
+-- Name: tickets tickets_duplicate_of_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.tickets
+    ADD CONSTRAINT tickets_duplicate_of_id_fkey FOREIGN KEY (duplicate_of_id) REFERENCES public.tickets(id) ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+--
+-- Name: tickets tickets_from_department_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.tickets
+    ADD CONSTRAINT tickets_from_department_id_fkey FOREIGN KEY (from_department_id) REFERENCES public.departments(id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+
+--
+-- Name: tickets tickets_subtype_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.tickets
+    ADD CONSTRAINT tickets_subtype_id_fkey FOREIGN KEY (subtype_id) REFERENCES public.request_subtypes(id) ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+--
+-- Name: tickets tickets_to_department_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.tickets
+    ADD CONSTRAINT tickets_to_department_id_fkey FOREIGN KEY (to_department_id) REFERENCES public.departments(id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+
+--
+-- Name: time_entries time_entries_ticket_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.time_entries
+    ADD CONSTRAINT time_entries_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES public.tickets(id) ON DELETE CASCADE;
+
+
+--
+-- Name: time_entries time_entries_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.time_entries
+    ADD CONSTRAINT time_entries_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_permissions user_permissions_permission_name_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.user_permissions
+    ADD CONSTRAINT user_permissions_permission_name_fkey FOREIGN KEY (permission_name) REFERENCES public.permissions(name) ON DELETE CASCADE;
+
+
+--
+-- Name: user_permissions user_permissions_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.user_permissions
+    ADD CONSTRAINT user_permissions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: users users_department_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: loop_user
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_department_id_fkey FOREIGN KEY (department_id) REFERENCES public.departments(id) ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+--
+-- Name: SCHEMA public; Type: ACL; Schema: -; Owner: loop_user
+--
+
+REVOKE USAGE ON SCHEMA public FROM PUBLIC;
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict YCVdkzBtjk3BELz4j7o6yLTETW3aWGXO3NEoqL2xT9R3hZJkLlQRqO5qy4kwEik
+

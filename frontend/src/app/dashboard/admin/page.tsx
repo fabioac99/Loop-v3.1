@@ -5,10 +5,10 @@ import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'next/navigation';
 import {
   Shield, Building2, Users, Ticket, Loader2, Plus, Save, X, Trash2, Edit2,
-  ChevronRight, Lock, Palette, AlertTriangle, Clock, Check, ArrowUpDown, MessageSquare
+  ChevronRight, Lock, Palette, AlertTriangle, Clock, Check, ArrowUpDown, MessageSquare, BookmarkPlus
 } from 'lucide-react';
 
-type Tab = 'departments' | 'permissions' | 'statuses' | 'priorities' | 'workhours' | 'canned';
+type Tab = 'departments' | 'permissions' | 'statuses' | 'priorities' | 'workhours' | 'canned' | 'templates';
 
 export default function AdminPage() {
   const { user } = useAuthStore();
@@ -28,6 +28,7 @@ export default function AdminPage() {
     { id: 'priorities', label: 'Priorities & SLA', icon: Clock },
     { id: 'workhours', label: 'Work Hours', icon: Clock },
     { id: 'canned', label: 'Canned Responses', icon: MessageSquare },
+    { id: 'templates', label: 'Ticket Templates', icon: BookmarkPlus },
   ];
 
   return (
@@ -53,6 +54,7 @@ export default function AdminPage() {
       {tab === 'priorities' && <PrioritiesTab />}
       {tab === 'workhours' && <WorkHoursTab />}
       {tab === 'canned' && <CannedResponsesTab />}
+      {tab === 'templates' && <TicketTemplatesTab />}
     </div>
   );
 }
@@ -893,6 +895,177 @@ function CannedResponsesTab() {
             <div className="p-5 border-t border-border flex justify-end gap-2">
               <button onClick={() => setShowForm(false)} className="h-9 px-4 rounded-lg border border-border text-sm hover:bg-accent">Cancel</button>
               <button onClick={handleSave} disabled={saving || !form.title || !form.content}
+                className="flex items-center gap-2 h-9 px-5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
+                {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />} {editing ? 'Update' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================== TICKET TEMPLATES TAB ============================== */
+function TicketTemplatesTab() {
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+  const [form, setForm] = useState({ name: '', description: '', title: '', content: '', toDepartmentId: '', priority: 'NORMAL', isGlobal: true });
+  const [saving, setSaving] = useState(false);
+
+  const fetchData = async () => {
+    setLoading(true);
+    const [t, d] = await Promise.all([api.getTicketTemplates(), api.getDepartments()]);
+    setTemplates(t); setDepartments(d); setLoading(false);
+  };
+  useEffect(() => { fetchData(); }, []);
+
+  const openCreate = () => {
+    setEditing(null);
+    setForm({ name: '', description: '', title: '', content: '', toDepartmentId: '', priority: 'NORMAL', isGlobal: true });
+    setShowForm(true);
+  };
+  const openEdit = (t: any) => {
+    setEditing(t);
+    setForm({
+      name: t.name, description: t.description || '', title: t.title || '', content: t.content || '',
+      toDepartmentId: t.toDepartmentId || '', priority: t.priority || 'NORMAL', isGlobal: t.isGlobal,
+    });
+    setShowForm(true);
+  };
+  const handleSave = async () => {
+    if (!form.name) return;
+    setSaving(true);
+    try {
+      if (editing) await api.updateTicketTemplate(editing.id, form);
+      else await api.createTicketTemplate(form);
+      setShowForm(false); fetchData();
+    } catch (e: any) { alert(e.message); }
+    finally { setSaving(false); }
+  };
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this template?')) return;
+    await api.deleteTicketTemplate(id);
+    fetchData();
+  };
+
+  const priorityLabels: Record<string, string> = { LOW: 'Low', NORMAL: 'Normal', HIGH: 'High', URGENT: 'Urgent' };
+
+  if (loading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-primary" size={24} /></div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold">Ticket Templates</h2>
+          <p className="text-sm text-muted-foreground">Pre-configured ticket templates for quick creation</p>
+        </div>
+        <button onClick={openCreate} className="flex items-center gap-2 h-9 px-4 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90">
+          <Plus size={14} /> New Template
+        </button>
+      </div>
+
+      {templates.length === 0 ? (
+        <div className="bg-card border border-border rounded-2xl p-12 text-center">
+          <BookmarkPlus size={32} className="mx-auto text-muted-foreground mb-3" />
+          <p className="text-sm text-muted-foreground">No templates yet. Templates pre-fill the ticket creation form.</p>
+        </div>
+      ) : (
+        <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
+          {templates.map((t: any) => (
+            <div key={t.id} className="flex items-start gap-4 p-4 hover:bg-accent/30 group">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm font-semibold">{t.name}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${t.isGlobal ? 'bg-emerald-500/10 text-emerald-500' : 'bg-zinc-500/10 text-zinc-400'}`}>
+                    {t.isGlobal ? 'Global' : 'Personal'}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">Used {t.usageCount}×</span>
+                </div>
+                {t.description && <p className="text-xs text-muted-foreground mb-1">{t.description}</p>}
+                <div className="flex flex-wrap gap-2 text-[10px]">
+                  {t.title && <span className="px-1.5 py-0.5 bg-secondary rounded">Title: {t.title.slice(0, 40)}</span>}
+                  {t.toDepartmentId && <span className="px-1.5 py-0.5 bg-secondary rounded">Dept: {departments.find(d => d.id === t.toDepartmentId)?.name || '...'}</span>}
+                  <span className="px-1.5 py-0.5 bg-secondary rounded">Priority: {priorityLabels[t.priority] || t.priority}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={() => openEdit(t)} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground"><Edit2 size={13} /></button>
+                <button onClick={() => handleDelete(t.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400"><Trash2 size={13} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowForm(false)}>
+          <div className="bg-card border border-border rounded-2xl w-full max-w-lg m-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-border flex items-center justify-between">
+              <h2 className="text-base font-bold">{editing ? 'Edit' : 'Create'} Template</h2>
+              <button onClick={() => setShowForm(false)} className="p-1 rounded hover:bg-accent text-muted-foreground"><X size={16} /></button>
+            </div>
+            <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+              <div>
+                <label className="block text-sm font-medium mb-1">Template Name <span className="text-destructive">*</span></label>
+                <input className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.name}
+                  onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. IT Access Request" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Description</label>
+                <input className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.description}
+                  onChange={e => setForm({ ...form, description: e.target.value })} placeholder="When to use this template" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Ticket Title (pre-filled)</label>
+                <input className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.title}
+                  onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Leave blank for user to fill in" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Ticket Description (pre-filled)</label>
+                <textarea className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm min-h-[100px] resize-y" value={form.content}
+                  onChange={e => setForm({ ...form, content: e.target.value })} placeholder="Template body text..." />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Default Department</label>
+                  <select className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.toDepartmentId}
+                    onChange={e => setForm({ ...form, toDepartmentId: e.target.value })}>
+                    <option value="">None</option>
+                    {departments.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Default Priority</label>
+                  <select className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm" value={form.priority}
+                    onChange={e => setForm({ ...form, priority: e.target.value })}>
+                    <option value="LOW">Low</option>
+                    <option value="NORMAL">Normal</option>
+                    <option value="HIGH">High</option>
+                    <option value="URGENT">Urgent</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Scope</label>
+                <div className="flex gap-2">
+                  <button onClick={() => setForm({ ...form, isGlobal: true })}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${form.isGlobal ? 'border-primary text-primary bg-primary/5' : 'border-border text-muted-foreground'}`}>
+                    Global
+                  </button>
+                  <button onClick={() => setForm({ ...form, isGlobal: false })}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${!form.isGlobal ? 'border-primary text-primary bg-primary/5' : 'border-border text-muted-foreground'}`}>
+                    Personal
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="p-5 border-t border-border flex justify-end gap-2">
+              <button onClick={() => setShowForm(false)} className="h-9 px-4 rounded-lg border border-border text-sm hover:bg-accent">Cancel</button>
+              <button onClick={handleSave} disabled={saving || !form.name}
                 className="flex items-center gap-2 h-9 px-5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
                 {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />} {editing ? 'Update' : 'Create'}
               </button>

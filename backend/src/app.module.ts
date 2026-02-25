@@ -1,3 +1,4 @@
+import { ConfigModule } from '@nestjs/config';
 import { Module } from '@nestjs/common';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
@@ -19,6 +20,8 @@ import { EntitiesModule } from './modules/entities/entities.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { MailModule } from './modules/mail/mail.module';
 import { CannedResponsesModule } from './modules/canned-responses/canned-responses.module';
+import { TicketTemplatesModule } from './modules/ticket-templates/ticket-templates.module';
+import { ScheduledReportsModule } from './modules/scheduled-reports/scheduled-reports.module';
 
 @Module({
   imports: [
@@ -41,9 +44,15 @@ import { CannedResponsesModule } from './modules/canned-responses/canned-respons
     AdminModule,
     MailModule,
     CannedResponsesModule,
+    TicketTemplatesModule,
+    ScheduledReportsModule,
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
-export class AppModule {}
+export class AppModule { }
