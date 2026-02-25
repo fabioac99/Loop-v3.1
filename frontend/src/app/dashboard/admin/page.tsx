@@ -5,10 +5,10 @@ import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'next/navigation';
 import {
   Shield, Building2, Users, Ticket, Loader2, Plus, Save, X, Trash2, Edit2,
-  ChevronRight, Lock, Palette, AlertTriangle, Clock, Check, ArrowUpDown, MessageSquare, BookmarkPlus
+  ChevronRight, Lock, Palette, AlertTriangle, Clock, Check, ArrowUpDown, MessageSquare, BookmarkPlus, Pause
 } from 'lucide-react';
 
-type Tab = 'departments' | 'permissions' | 'statuses' | 'priorities' | 'workhours' | 'canned' | 'templates';
+type Tab = 'departments' | 'permissions' | 'statuses' | 'priorities' | 'workhours' | 'canned' | 'templates' | 'pauseReasons';
 
 export default function AdminPage() {
   const { user } = useAuthStore();
@@ -29,6 +29,7 @@ export default function AdminPage() {
     { id: 'workhours', label: 'Work Hours', icon: Clock },
     { id: 'canned', label: 'Canned Responses', icon: MessageSquare },
     { id: 'templates', label: 'Ticket Templates', icon: BookmarkPlus },
+    { id: 'pauseReasons', label: 'Pause Reasons', icon: Pause },
   ];
 
   return (
@@ -55,6 +56,7 @@ export default function AdminPage() {
       {tab === 'workhours' && <WorkHoursTab />}
       {tab === 'canned' && <CannedResponsesTab />}
       {tab === 'templates' && <TicketTemplatesTab />}
+      {tab === 'pauseReasons' && <PauseReasonsTab />}
     </div>
   );
 }
@@ -1071,6 +1073,101 @@ function TicketTemplatesTab() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/* ============================== PAUSE REASONS TAB ============================== */
+function PauseReasonsTab() {
+  const [reasons, setReasons] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState('');
+  const [newLabel, setNewLabel] = useState('');
+
+  const fetchReasons = async () => {
+    setLoading(true);
+    try { const r = await api.getAllPauseReasons(); setReasons(r); } catch { }
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchReasons(); }, []);
+
+  const handleCreate = async () => {
+    if (!newLabel.trim()) return;
+    await api.createPauseReason({ label: newLabel.trim(), sortOrder: reasons.length });
+    setNewLabel('');
+    fetchReasons();
+  };
+
+  const handleUpdate = async (id: string) => {
+    if (!editLabel.trim()) return;
+    await api.updatePauseReason(id, { label: editLabel.trim() });
+    setEditId(null);
+    fetchReasons();
+  };
+
+  const handleToggle = async (id: string, isActive: boolean) => {
+    await api.updatePauseReason(id, { isActive: !isActive });
+    fetchReasons();
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this pause reason?')) return;
+    await api.deletePauseReason(id);
+    fetchReasons();
+  };
+
+  if (loading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-primary" size={20} /></div>;
+
+  return (
+    <div className="bg-card border border-border rounded-2xl overflow-hidden">
+      <div className="p-5 border-b border-border">
+        <h2 className="font-semibold flex items-center gap-2"><Pause size={16} className="text-orange-400" /> Pause Reasons</h2>
+        <p className="text-xs text-muted-foreground mt-1">Configure the reasons users can select when pausing a ticket. SLA timers stop while a ticket is paused.</p>
+      </div>
+      <div className="p-4 border-b border-border">
+        <div className="flex gap-2">
+          <input value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="New pause reason..."
+            className="flex-1 h-9 px-3 rounded-xl bg-secondary border border-border text-sm"
+            onKeyDown={e => e.key === 'Enter' && handleCreate()} />
+          <button onClick={handleCreate} disabled={!newLabel.trim()}
+            className="h-9 px-4 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-40 flex items-center gap-1.5">
+            <Plus size={14} /> Add
+          </button>
+        </div>
+      </div>
+      {reasons.length === 0 ? (
+        <div className="p-8 text-center text-muted-foreground text-sm">No pause reasons configured.</div>
+      ) : (
+        <div className="divide-y divide-border">
+          {reasons.map((r, i) => (
+            <div key={r.id} className="flex items-center gap-3 p-4 hover:bg-accent/30">
+              <span className="text-xs text-muted-foreground w-6 text-center">{i + 1}</span>
+              {editId === r.id ? (
+                <div className="flex-1 flex gap-2">
+                  <input value={editLabel} onChange={e => setEditLabel(e.target.value)}
+                    className="flex-1 h-8 px-3 rounded-lg bg-secondary border border-border text-sm"
+                    onKeyDown={e => e.key === 'Enter' && handleUpdate(r.id)} autoFocus />
+                  <button onClick={() => handleUpdate(r.id)} className="h-8 px-3 rounded-lg bg-primary text-primary-foreground text-xs"><Check size={12} /></button>
+                  <button onClick={() => setEditId(null)} className="h-8 px-3 rounded-lg border border-border text-xs"><X size={12} /></button>
+                </div>
+              ) : (
+                <>
+                  <span className={`flex-1 text-sm ${!r.isActive ? 'text-muted-foreground line-through' : ''}`}>{r.label}</span>
+                  <button onClick={() => handleToggle(r.id, r.isActive)}
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${r.isActive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-zinc-500/10 text-zinc-400'}`}>
+                    {r.isActive ? 'Active' : 'Disabled'}
+                  </button>
+                  <button onClick={() => { setEditId(r.id); setEditLabel(r.label); }} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground"><Edit2 size={12} /></button>
+                  <button onClick={() => handleDelete(r.id)} className="p-1.5 rounded-lg hover:bg-accent text-red-400"><Trash2 size={12} /></button>
+                </>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>

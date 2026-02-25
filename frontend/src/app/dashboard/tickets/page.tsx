@@ -15,7 +15,8 @@ import EntityTypeSelector from '@/components/common/EntityTypeSelector';
 const statusColors: Record<string, string> = {
   DRAFT: 'bg-zinc-500/10 text-zinc-500 border-zinc-500/20',
   OPEN: 'bg-blue-500/10 text-blue-500 border-blue-500/20', IN_PROGRESS: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
-  WAITING_REPLY: 'bg-purple-500/10 text-purple-500 border-purple-500/20', APPROVED: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+  WAITING_REPLY: 'bg-purple-500/10 text-purple-500 border-purple-500/20', PAUSED: 'bg-orange-500/10 text-orange-500 border-orange-500/20',
+  APPROVED: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
   REJECTED: 'bg-red-500/10 text-red-500 border-red-500/20', CLOSED: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20',
 };
 const priorityDots: Record<string, string> = { LOW: 'bg-zinc-400', NORMAL: 'bg-blue-400', HIGH: 'bg-amber-400', URGENT: 'bg-red-400' };

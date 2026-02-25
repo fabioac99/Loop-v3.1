@@ -34,7 +34,7 @@ function NotificationPopup({ open, onClose }: { open: boolean; onClose: () => vo
   if (!open) return null;
 
   return (
-    <div ref={popupRef} className="absolute right-0 top-full mt-2 w-[400px] max-h-[520px] bg-card border border-border rounded-2xl shadow-2xl shadow-black/20 z-50 flex flex-col overflow-hidden">
+    <div ref={popupRef} className="absolute right-0 top-full mt-2 w-[400px] max-h-[520px] bg-card border border-border rounded-2xl shadow-2xl shadow-black/20 z-[80] flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
         <div className="flex items-center gap-2">
@@ -286,12 +286,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })()}
           {sidebarOpen && branding.showBrandName && <span className="font-bold text-lg tracking-tight">{branding.brandName}</span>}
         </div>
+        {/* Sidebar
+
         <div className="px-3 pt-4 pb-2">
           <Link href="/dashboard/tickets?new=true"
             className={`flex items-center gap-2 h-10 ${sidebarOpen ? 'px-4' : 'justify-center'} bg-primary text-primary-foreground rounded-xl font-medium text-sm hover:opacity-90 transition-all`}>
             <Plus size={16} />{sidebarOpen && 'New Request'}
           </Link>
-        </div>
+        </div> */}
         <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
           {navItems.map((item) => {
             const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
@@ -320,7 +322,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-16 border-b border-border flex items-center px-4 md:px-6 gap-4 shrink-0 bg-card/80 backdrop-blur-sm">
+        <header className="relative z-40 overflow-visible h-16 border-b border-border flex items-center px-4 md:px-6 gap-4 shrink-0 bg-card/80 backdrop-blur-sm">
           <button onClick={() => { setSidebarOpen(!sidebarOpen); setMobileOpen(!mobileOpen); }} className="p-2 rounded-lg hover:bg-accent text-muted-foreground">
             <Menu size={18} />
           </button>
@@ -371,7 +373,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </button>
 
             {/* Notification bell + popup */}
-            <div className="relative">
+            <div className="relative z-50">
               <button
                 onClick={() => setNotifOpen(!notifOpen)}
                 className={`relative p-2 rounded-lg hover:bg-accent text-muted-foreground transition-colors ${notifOpen ? 'bg-accent text-foreground' : ''}`}
@@ -392,7 +394,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+        <main className="relative z-0 flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
       </div>
 
       {mobileOpen && <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setMobileOpen(false)} />}

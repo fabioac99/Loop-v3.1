@@ -1,10 +1,8 @@
 {
-  "/auth/page": "app/auth/page.js",
   "/favicon.ico/route": "app/favicon.ico/route.js",
-  "/dashboard/page": "app/dashboard/page.js",
-  "/dashboard/team-performance/page": "app/dashboard/team-performance/page.js",
-  "/dashboard/users/page": "app/dashboard/users/page.js",
-  "/dashboard/tickets/page": "app/dashboard/tickets/page.js",
   "/dashboard/admin/page": "app/dashboard/admin/page.js",
-  "/dashboard/tickets/[id]/page": "app/dashboard/tickets/[id]/page.js"
+  "/dashboard/tickets/page": "app/dashboard/tickets/page.js",
+  "/dashboard/audit/page": "app/dashboard/audit/page.js",
+  "/dashboard/forms/page": "app/dashboard/forms/page.js",
+  "/dashboard/users/page": "app/dashboard/users/page.js"
 }

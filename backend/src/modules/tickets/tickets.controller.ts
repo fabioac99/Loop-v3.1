@@ -123,6 +123,33 @@ export class TicketsController {
     return this.service.bulkUpdate(user, body);
   }
 
+  // Pause / Resume
+  @Post(':id/pause')
+  pauseTicket(@Param('id') id: string, @CurrentUser() user: any, @Body() body: { reason: string }) {
+    return this.service.pauseTicket(id, user, body.reason);
+  }
+
+  @Post(':id/resume')
+  resumeTicket(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.resumeTicket(id, user);
+  }
+
+  // Pause Reasons
+  @Get('pause-reasons/list')
+  getPauseReasons() { return this.service.getPauseReasons(); }
+
+  @Get('pause-reasons/all')
+  getAllPauseReasons() { return this.service.getAllPauseReasons(); }
+
+  @Post('pause-reasons')
+  createPauseReason(@Body() body: { label: string; sortOrder?: number }) { return this.service.createPauseReason(body); }
+
+  @Put('pause-reasons/:rid')
+  updatePauseReason(@Param('rid') rid: string, @Body() body: any) { return this.service.updatePauseReason(rid, body); }
+
+  @Delete('pause-reasons/:rid')
+  deletePauseReason(@Param('rid') rid: string) { return this.service.deletePauseReason(rid); }
+
   // Merge tickets
   @Post(':id/merge')
   mergeTickets(@Param('id') id: string, @CurrentUser() user: any, @Body() body: { sourceIds: string[] }) {

@@ -187,6 +187,13 @@ class ApiClient {
   // Bulk actions
   bulkUpdateTickets(data: { ticketIds: string[]; action: string; value?: string }) { return this.post<any>('/tickets/bulk/update', data); }
   mergeTickets(targetId: string, sourceIds: string[]) { return this.post<any>(`/tickets/${targetId}/merge`, { sourceIds }); }
+  pauseTicket(id: string, reason: string) { return this.post<any>(`/tickets/${id}/pause`, { reason }); }
+  resumeTicket(id: string) { return this.post<any>(`/tickets/${id}/resume`); }
+  getPauseReasons() { return this.get<any[]>('/tickets/pause-reasons/list'); }
+  getAllPauseReasons() { return this.get<any[]>('/tickets/pause-reasons/all'); }
+  createPauseReason(data: any) { return this.post<any>('/tickets/pause-reasons', data); }
+  updatePauseReason(id: string, data: any) { return this.put<any>(`/tickets/pause-reasons/${id}`, data); }
+  deletePauseReason(id: string) { return this.delete<any>(`/tickets/pause-reasons/${id}`); }
   // Ticket templates
   getTicketTemplates() { return this.get<any[]>('/ticket-templates'); }
   createTicketTemplate(data: any) { return this.post<any>('/ticket-templates', data); }

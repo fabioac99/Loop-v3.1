@@ -46,7 +46,7 @@ export class TicketsService {
         where.createdById = user.id;
         where.status = 'DRAFT';
       } else if (view === 'archived') {
-        where.isArchived = true;
+        where.archives = { some: { userId: user.id } };
         where.OR = [
           { createdById: user.id },
           { assignedToId: user.id },
@@ -57,20 +57,20 @@ export class TicketsService {
           where.OR.push({ fromDepartmentId: user.departmentId });
         }
       } else if (view === 'department' && isDeptHead) {
-        where.isArchived = false;
+        where.archives = { none: { userId: user.id } };
         where.OR = [
           { toDepartmentId: user.departmentId },
           { fromDepartmentId: user.departmentId },
         ];
       } else if (view === 'personal') {
-        where.isArchived = false;
+        where.archives = { none: { userId: user.id } };
         where.OR = [
           { createdById: user.id },
           { assignedToId: user.id },
           { watchers: { some: { userId: user.id } } },
         ];
       } else {
-        where.isArchived = false;
+        where.archives = { none: { userId: user.id } };
         const orConditions: any[] = [
           { createdById: user.id },
           { assignedToId: user.id },
@@ -87,9 +87,9 @@ export class TicketsService {
         where.createdById = user.id;
         where.status = 'DRAFT';
       } else if (view === 'archived') {
-        where.isArchived = true;
+        where.archives = { some: { userId: user.id } };
       } else {
-        where.isArchived = false;
+        where.archives = { none: { userId: user.id } };
       }
     }
 
@@ -171,6 +171,7 @@ export class TicketsService {
         formSubmission: true,
         duplicateOf: { select: { id: true, ticketNumber: true, title: true } },
         duplicates: { select: { id: true, ticketNumber: true, title: true } },
+        archives: { select: { userId: true } },
       },
     });
     if (!ticket) throw new NotFoundException('Ticket not found');
@@ -317,9 +318,9 @@ export class TicketsService {
       }
     }
 
-    if (data.status === 'WAITING_REPLY' && ticket.status !== 'WAITING_REPLY') {
+    if ((data.status === 'WAITING_REPLY' || data.status === 'PAUSED') && ticket.status !== 'WAITING_REPLY' && ticket.status !== 'PAUSED') {
       updateData.slaPausedAt = new Date();
-    } else if (data.status && data.status !== 'WAITING_REPLY' && ticket.slaPausedAt) {
+    } else if (data.status && data.status !== 'WAITING_REPLY' && data.status !== 'PAUSED' && ticket.slaPausedAt) {
       const pausedSec = Math.floor((Date.now() - ticket.slaPausedAt.getTime()) / 1000);
       updateData.slaPausedDuration = ticket.slaPausedDuration + pausedSec;
       updateData.slaPausedAt = null;
@@ -733,19 +734,97 @@ export class TicketsService {
   async archiveTicket(id: string, user: any) {
     const ticket = await this.prisma.ticket.findUnique({ where: { id } });
     if (!ticket) throw new NotFoundException('Ticket not found');
-    return this.prisma.ticket.update({
-      where: { id },
-      data: { isArchived: true, archivedAt: new Date() },
+    await this.prisma.ticketArchive.upsert({
+      where: { ticketId_userId: { ticketId: id, userId: user.id } },
+      create: { ticketId: id, userId: user.id },
+      update: {},
     });
+    return { success: true };
   }
 
   async unarchiveTicket(id: string, user: any) {
+    await this.prisma.ticketArchive.deleteMany({
+      where: { ticketId: id, userId: user.id },
+    });
+    return { success: true };
+  }
+
+  // ==================== PAUSE TICKET ====================
+
+  async pauseTicket(id: string, user: any, reason: string) {
     const ticket = await this.prisma.ticket.findUnique({ where: { id } });
     if (!ticket) throw new NotFoundException('Ticket not found');
-    return this.prisma.ticket.update({
+
+    const updated = await this.prisma.ticket.update({
       where: { id },
-      data: { isArchived: false, archivedAt: null },
+      data: { status: 'PAUSED', slaPausedAt: new Date() },
+      include: { fromDepartment: true, toDepartment: true, createdBy: { select: { id: true, firstName: true, lastName: true, email: true } }, assignedTo: { select: { id: true, firstName: true, lastName: true, email: true } } },
     });
+
+    await this.prisma.ticketHistory.create({
+      data: { ticketId: id, field: 'status', oldValue: ticket.status, newValue: 'PAUSED', changedById: user.id },
+    });
+    await this.prisma.ticketHistory.create({
+      data: { ticketId: id, field: 'pauseReason', oldValue: '', newValue: reason, changedById: user.id },
+    });
+    await this.prisma.auditLog.create({
+      data: { action: 'TICKET_STATUS_CHANGED', entityType: 'ticket', entityId: id, userId: user.id, metadata: { from: ticket.status, to: 'PAUSED', reason } },
+    });
+
+    await this.notifications.notifyStatusChanged(updated, ticket.status, 'PAUSED');
+    this.gateway.ticketStatusChanged(id, ticket.status, 'PAUSED');
+
+    return updated;
+  }
+
+  async resumeTicket(id: string, user: any) {
+    const ticket = await this.prisma.ticket.findUnique({ where: { id } });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    if (ticket.status !== 'PAUSED') return ticket;
+
+    const updateData: any = { status: 'IN_PROGRESS', slaPausedAt: null };
+    if (ticket.slaPausedAt) {
+      const pausedSec = Math.floor((Date.now() - ticket.slaPausedAt.getTime()) / 1000);
+      updateData.slaPausedDuration = ticket.slaPausedDuration + pausedSec;
+      if (ticket.slaResponseDeadline) updateData.slaResponseDeadline = new Date(ticket.slaResponseDeadline.getTime() + pausedSec * 1000);
+      if (ticket.slaResolutionDeadline) updateData.slaResolutionDeadline = new Date(ticket.slaResolutionDeadline.getTime() + pausedSec * 1000);
+    }
+
+    const updated = await this.prisma.ticket.update({
+      where: { id }, data: updateData,
+      include: { fromDepartment: true, toDepartment: true, createdBy: { select: { id: true, firstName: true, lastName: true, email: true } }, assignedTo: { select: { id: true, firstName: true, lastName: true, email: true } } },
+    });
+
+    await this.prisma.ticketHistory.create({
+      data: { ticketId: id, field: 'status', oldValue: 'PAUSED', newValue: 'IN_PROGRESS', changedById: user.id },
+    });
+
+    await this.notifications.notifyStatusChanged(updated, 'PAUSED', 'IN_PROGRESS');
+    this.gateway.ticketStatusChanged(id, 'PAUSED', 'IN_PROGRESS');
+
+    return updated;
+  }
+
+  // ==================== PAUSE REASONS (admin) ====================
+
+  async getPauseReasons() {
+    return this.prisma.pauseReason.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } });
+  }
+
+  async getAllPauseReasons() {
+    return this.prisma.pauseReason.findMany({ orderBy: { sortOrder: 'asc' } });
+  }
+
+  async createPauseReason(data: { label: string; sortOrder?: number }) {
+    return this.prisma.pauseReason.create({ data: { label: data.label, sortOrder: data.sortOrder || 0 } });
+  }
+
+  async updatePauseReason(id: string, data: { label?: string; isActive?: boolean; sortOrder?: number }) {
+    return this.prisma.pauseReason.update({ where: { id }, data });
+  }
+
+  async deletePauseReason(id: string) {
+    return this.prisma.pauseReason.delete({ where: { id } });
   }
 
   // ==================== TIME ENTRIES ====================
@@ -881,16 +960,16 @@ export class TicketsService {
             results.push(ticketId);
             break;
           case 'archive':
-            await this.prisma.ticket.update({
-              where: { id: ticketId },
-              data: { isArchived: true, archivedAt: new Date() },
+            await this.prisma.ticketArchive.upsert({
+              where: { ticketId_userId: { ticketId, userId: user.id } },
+              create: { ticketId, userId: user.id },
+              update: {},
             });
             results.push(ticketId);
             break;
           case 'unarchive':
-            await this.prisma.ticket.update({
-              where: { id: ticketId },
-              data: { isArchived: false, archivedAt: null },
+            await this.prisma.ticketArchive.deleteMany({
+              where: { ticketId, userId: user.id },
             });
             results.push(ticketId);
             break;
