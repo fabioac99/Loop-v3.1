@@ -11,6 +11,7 @@ import {
   ArrowLeft, Send, Paperclip, Eye, EyeOff, Copy, Clock, AlertTriangle,
   Loader2, Image as ImageIcon, Bold, Italic, List, X, Bell, BellOff, UserPlus,
   Forward, Trash2, Share2, Archive, ArchiveRestore, MessageSquare, Timer, History, ChevronDown, Plus, GitMerge,
+  Pause, Play, Save,
 } from 'lucide-react';
 import RichTextEditor from '@/components/common/RichTextEditor';
 import type { UploadedFile } from '@/components/common/RichTextEditor';
@@ -18,7 +19,8 @@ import type { UploadedFile } from '@/components/common/RichTextEditor';
 const statusColors: Record<string, string> = {
   DRAFT: 'bg-zinc-500/10 text-zinc-500',
   OPEN: 'bg-blue-500/10 text-blue-500', IN_PROGRESS: 'bg-amber-500/10 text-amber-500',
-  WAITING_REPLY: 'bg-purple-500/10 text-purple-500', APPROVED: 'bg-emerald-500/10 text-emerald-500',
+  WAITING_REPLY: 'bg-purple-500/10 text-purple-500', PAUSED: 'bg-orange-500/10 text-orange-500',
+  APPROVED: 'bg-emerald-500/10 text-emerald-500',
   REJECTED: 'bg-red-500/10 text-red-500', CLOSED: 'bg-zinc-500/10 text-zinc-400',
 };
 
@@ -298,6 +300,55 @@ export default function TicketDetailPage() {
     setShowCanned(false);
   };
 
+  // Save as canned response
+  const [showSaveCanned, setShowSaveCanned] = useState(false);
+  const [saveCannedTitle, setSaveCannedTitle] = useState('');
+  const handleSaveCanned = async () => {
+    if (!saveCannedTitle || !message.trim()) return;
+    await api.createCannedResponse({ title: saveCannedTitle, content: message, isGlobal: false });
+    setShowSaveCanned(false);
+    setSaveCannedTitle('');
+  };
+
+  // Pause ticket
+  const [showPause, setShowPause] = useState(false);
+  const [pauseReasons, setPauseReasons] = useState<any[]>([]);
+  const [selectedPauseReason, setSelectedPauseReason] = useState('');
+  const [pausing, setPausing] = useState(false);
+
+  const openPauseModal = async () => {
+    const reasons = await api.getPauseReasons();
+    setPauseReasons(reasons);
+    setSelectedPauseReason(reasons[0]?.label || '');
+    setShowPause(true);
+  };
+
+  const handlePause = async () => {
+    if (!selectedPauseReason) return;
+    setPausing(true);
+    try {
+      await api.pauseTicket(ticket.id, selectedPauseReason);
+      setShowPause(false);
+      fetchTicket();
+    } catch (e: any) { alert(e.message); }
+    finally { setPausing(false); }
+  };
+
+  const handleResume = async () => {
+    try {
+      await api.resumeTicket(ticket.id);
+      fetchTicket();
+    } catch (e: any) { alert(e.message); }
+  };
+
+  // Per-user archive
+  const [isArchivedForMe, setIsArchivedForMe] = useState(false);
+  useEffect(() => {
+    if (ticket) {
+      setIsArchivedForMe(ticket.archives?.some((a: any) => a.userId === user?.id) || false);
+    }
+  }, [ticket, user]);
+
   // Time tracking
   const [showTimeTracker, setShowTimeTracker] = useState(false);
   const [timeEntries, setTimeEntries] = useState<any[]>([]);
@@ -373,7 +424,7 @@ export default function TicketDetailPage() {
 
   const handleArchive = async () => {
     try {
-      if (ticket.isArchived) {
+      if (isArchivedForMe) {
         await api.unarchiveTicket(ticket.id);
       } else {
         await api.archiveTicket(ticket.id);
@@ -411,7 +462,7 @@ export default function TicketDetailPage() {
             <span className={`px-2 py-0.5 rounded-md text-xs font-medium ${statusColors[ticket.status]}`}>{ticket.status.replace('_', ' ')}</span>
             {ticket.priority === 'URGENT' && <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-red-500/10 text-red-400 animate-pulse">URGENT</span>}
             {ticket.priority === 'HIGH' && <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-amber-500/10 text-amber-400">HIGH</span>}
-            {ticket.isArchived && <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-zinc-500/10 text-zinc-400 flex items-center gap-1"><Archive size={10} /> ARCHIVED</span>}
+            {isArchivedForMe && <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-zinc-500/10 text-zinc-400 flex items-center gap-1"><Archive size={10} /> ARCHIVED</span>}
             {sla && <span className={`px-2 py-0.5 rounded-md text-xs font-medium flex items-center gap-1 ${sla.color}`}><sla.icon size={10} /> {sla.text}</span>}
           </div>
           <h1 className="text-xl font-bold">{ticket.title}</h1>
@@ -419,8 +470,18 @@ export default function TicketDetailPage() {
         {canManage && (
           <div className="flex items-center gap-2 shrink-0">
             <select value={ticket.status} onChange={(e) => handleStatusChange(e.target.value)} className="h-9 px-3 rounded-lg bg-secondary border border-border text-sm">
-              {['OPEN', 'IN_PROGRESS', 'WAITING_REPLY', 'APPROVED', 'REJECTED', 'CLOSED'].map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+              {['OPEN', 'IN_PROGRESS', 'WAITING_REPLY', 'PAUSED', 'APPROVED', 'REJECTED', 'CLOSED'].map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
             </select>
+            {/* Pause / Resume button */}
+            {ticket.status === 'PAUSED' ? (
+              <button onClick={handleResume} className="h-9 px-3 rounded-lg border border-emerald-500/30 text-emerald-400 text-sm hover:bg-emerald-500/10 flex items-center gap-1.5" title="Resume ticket">
+                <Play size={14} /><span className="hidden sm:inline text-xs">Resume</span>
+              </button>
+            ) : !['CLOSED', 'REJECTED', 'DRAFT'].includes(ticket.status) && (
+              <button onClick={openPauseModal} className="h-9 px-3 rounded-lg border border-orange-500/30 text-orange-400 text-sm hover:bg-orange-500/10 flex items-center gap-1.5" title="Pause ticket">
+                <Pause size={14} /><span className="hidden sm:inline text-xs">Pause</span>
+              </button>
+            )}
             {Object.keys(actions).length > 0 && (
               <div className="relative">
                 <button onClick={() => setShowActions(!showActions)} className="h-9 px-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90">Actions</button>
@@ -440,13 +501,11 @@ export default function TicketDetailPage() {
             <button onClick={() => setShowMerge(true)} className="h-9 px-3 rounded-lg border border-border text-sm hover:bg-accent flex items-center gap-1.5" title="Merge">
               <GitMerge size={14} /><span className="hidden sm:inline text-xs">Merge</span>
             </button>
-            {(ticket.status === 'CLOSED' || ticket.status === 'REJECTED' || ticket.isArchived) && (
-              <button onClick={handleArchive} className={`h-9 px-3 rounded-lg border text-sm hover:bg-accent flex items-center gap-1.5 ${ticket.isArchived ? 'border-amber-500/30 text-amber-400' : 'border-border'}`}
-                title={ticket.isArchived ? 'Unarchive' : 'Archive'}>
-                {ticket.isArchived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
-                <span className="hidden sm:inline text-xs">{ticket.isArchived ? 'Unarchive' : 'Archive'}</span>
-              </button>
-            )}
+            <button onClick={handleArchive} className={`h-9 px-3 rounded-lg border text-sm hover:bg-accent flex items-center gap-1.5 ${isArchivedForMe ? 'border-amber-500/30 text-amber-400' : 'border-border'}`}
+              title={isArchivedForMe ? 'Unarchive' : 'Archive'}>
+              {isArchivedForMe ? <ArchiveRestore size={14} /> : <Archive size={14} />}
+              <span className="hidden sm:inline text-xs">{isArchivedForMe ? 'Unarchive' : 'Archive'}</span>
+            </button>
             {isAdmin && (
               <button onClick={handleDelete} className="h-9 px-3 rounded-lg border border-red-500/30 text-red-400 text-sm hover:bg-red-500/10" title="Delete ticket">
                 <Trash2 size={14} />
@@ -591,12 +650,12 @@ export default function TicketDetailPage() {
           {/* Entity info (Client/Supplier) from ticket.metadata */}
           {ticket.metadata?.entityType && ticket.metadata.entityType !== 'none' && (
             <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${ticket.metadata.entityType === 'client'
-              ? 'bg-blue-500/5 border-blue-500/20'
-              : 'bg-emerald-500/5 border-emerald-500/20'
+                ? 'bg-blue-500/5 border-blue-500/20'
+                : 'bg-emerald-500/5 border-emerald-500/20'
               }`}>
               <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${ticket.metadata.entityType === 'client'
-                ? 'bg-blue-500/10 text-blue-500'
-                : 'bg-emerald-500/10 text-emerald-500'
+                  ? 'bg-blue-500/10 text-blue-500'
+                  : 'bg-emerald-500/10 text-emerald-500'
                 }`}>{ticket.metadata.entityType}</span>
               <span className="text-sm font-medium">{ticket.metadata.entityName || '—'}</span>
             </div>
@@ -740,6 +799,25 @@ export default function TicketDetailPage() {
                         </div>
                       )}
                     </div>
+                    {/* Save as Canned Response */}
+                    {message.trim() && (
+                      <div className="relative">
+                        {showSaveCanned ? (
+                          <div className="flex items-center gap-1">
+                            <input value={saveCannedTitle} onChange={e => setSaveCannedTitle(e.target.value)} placeholder="Template name..."
+                              className="h-6 px-2 text-[11px] rounded border border-border bg-secondary w-32" />
+                            <button type="button" onClick={handleSaveCanned} disabled={!saveCannedTitle}
+                              className="text-[11px] px-1.5 py-0.5 rounded bg-primary text-primary-foreground disabled:opacity-40"><Save size={10} /></button>
+                            <button type="button" onClick={() => setShowSaveCanned(false)} className="text-muted-foreground"><X size={10} /></button>
+                          </div>
+                        ) : (
+                          <button type="button" onClick={() => setShowSaveCanned(true)}
+                            className="text-[11px] px-2 py-1 rounded border border-border hover:bg-accent text-muted-foreground flex items-center gap-1">
+                            <Save size={10} /> Save as Canned
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <button type="submit" disabled={sending || (!message.trim() && messageFiles.length === 0)}
                     className="flex items-center gap-2 h-9 px-5 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-all">
@@ -910,6 +988,41 @@ export default function TicketDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Pause Reason Modal */}
+      {showPause && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowPause(false)}>
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-border">
+              <h3 className="font-semibold flex items-center gap-2"><Pause size={16} className="text-orange-400" /> Pause Ticket</h3>
+              <p className="text-xs text-muted-foreground mt-1">SLA timers will be paused until the ticket is resumed. Please select a reason.</p>
+            </div>
+            <div className="p-5 space-y-3">
+              {pauseReasons.length > 0 ? (
+                <div className="space-y-2">
+                  {pauseReasons.map(r => (
+                    <label key={r.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedPauseReason === r.label ? 'border-orange-500/50 bg-orange-500/5' : 'border-border hover:bg-accent/50'}`}>
+                      <input type="radio" name="pauseReason" checked={selectedPauseReason === r.label} onChange={() => setSelectedPauseReason(r.label)}
+                        className="accent-orange-500" />
+                      <span className="text-sm">{r.label}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <input value={selectedPauseReason} onChange={e => setSelectedPauseReason(e.target.value)} placeholder="Enter reason..."
+                  className="w-full h-10 px-3 rounded-xl bg-secondary border border-border text-sm" />
+              )}
+            </div>
+            <div className="flex justify-end gap-2 p-5 border-t border-border">
+              <button onClick={() => setShowPause(false)} className="h-9 px-4 rounded-xl text-sm border border-border hover:bg-accent">Cancel</button>
+              <button onClick={handlePause} disabled={pausing || !selectedPauseReason}
+                className="h-9 px-4 rounded-xl text-sm bg-orange-500 text-white font-medium hover:bg-orange-600 disabled:opacity-40 flex items-center gap-1.5">
+                {pausing ? <Loader2 size={14} className="animate-spin" /> : <Pause size={14} />} Pause Ticket
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

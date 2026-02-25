@@ -24,6 +24,7 @@ enum TicketStatus {
   OPEN
   IN_PROGRESS
   WAITING_REPLY
+  PAUSED
   APPROVED
   REJECTED
   CLOSED
@@ -131,6 +132,7 @@ model User {
   cannedResponses   CannedResponse[]
   timeEntries       TimeEntry[]
   ticketTemplates   TicketTemplate[]
+  archivedTickets   TicketArchive[]
 
   @@map("users")
 }
@@ -306,6 +308,7 @@ model Ticket {
   formSubmission    FormSubmission?
   forwards          TicketForward[]
   timeEntries       TimeEntry[]
+  archives          TicketArchive[]
 
   @@index([status])
   @@index([priority])
@@ -315,6 +318,29 @@ model Ticket {
   @@index([assignedToId])
   @@index([createdAt])
   @@map("tickets")
+}
+
+model TicketArchive {
+  id        String   @id @default(cuid())
+  ticketId  String   @map("ticket_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([ticketId, userId])
+  @@map("ticket_archives")
+}
+
+model PauseReason {
+  id          String   @id @default(cuid())
+  label       String
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("pause_reasons")
 }
 
 model TicketHistory {
